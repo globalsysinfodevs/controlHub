@@ -324,15 +324,9 @@ export interface AgentQuery {
 export const agentsApi = {
   /** GET /api/v1/agents/categories */
   categories: () => api.get<unknown[]>("/agents/categories"),
-  /** GET /api/v1/agents?page&page_size&search&category_id&tenant_id */
-  list: (q: AgentQuery = {}) =>
-    api.get<unknown[]>("/agents", {
-      page: q.page,
-      page_size: q.page_size,
-      search: q.search,
-      category_id: q.category_id,
-      tenant_id: q.tenant_id,
-    }),
+  /** GET /api/v1/agents — backend accepts no query params on this endpoint */
+  list: (_q: AgentQuery = {}) =>
+    api.get<unknown[]>("/agents"),
   /** GET /api/v1/agents/{agent_id} */
   get: (id: string) => api.get<unknown>(`/agents/${id}`),
   /** POST /api/v1/agents — super admin only */

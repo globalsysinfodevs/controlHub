@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { CATALOG, type CatalogAgent } from "@/features/marketplace/data";
-import { isMock } from "@/lib/api/client";
+import { isMock, getAccessToken } from "@/lib/api/client";
 import { marketplaceApi } from "@/lib/api/endpoints";
 
 interface MarketState {
@@ -21,6 +21,12 @@ export const useMarket = create<MarketState>()(
       hydrated: false,
       async hydrate() {
         if (isMock) {
+          set({ hydrated: true });
+          return;
+        }
+        // Don't attempt live fetch without an auth token — it will 401/422.
+        const token = getAccessToken() ?? localStorage.getItem("ialestra.token");
+        if (!token) {
           set({ hydrated: true });
           return;
         }
