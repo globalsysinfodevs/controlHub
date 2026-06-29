@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Tenant, User, UserRole } from "@/lib/api/types";
-import { setAccessToken } from "@/lib/api/client";
+import { setAccessToken, setRefreshToken, clearTokens } from "@/lib/api/client";
 import { authApi } from "@/lib/api/endpoints";
 
 interface AuthState {
@@ -27,9 +27,8 @@ function pick<T = unknown>(obj: Raw | undefined | null, ...keys: string[]): T | 
 }
 
 /**
- * Map the backend's login/profile payload into our User. The deployed
- * super-admin auth doesn't publish a response schema, so we read defensively
- * across the field names FastAPI projects commonly use.
+ * Map the backend's login/profile payload into our User shape.
+ * Reads defensively across common FastAPI field names.
  */
 function mapUser(raw: Raw | undefined, fallbackEmail: string): User {
   const src = raw ?? {};
@@ -46,6 +45,23 @@ function mapUser(raw: Raw | undefined, fallbackEmail: string): User {
     group_ids: [],
     last_active_at: new Date().toISOString(),
     created_at: pick<string>(src, "created_at") ?? new Date().toISOString(),
+  };
+}
+
+/**
+ * Map the backend's tenant payload into our Tenant shape.
+ * Reads defensively across common field names.
+ */
+function mapTenant(raw: Raw | undefined): Tenant {
+  if (!raw) return PLATFORM_TENANT;
+  return {
+    id: String(pick(raw, "id", "tenant_id") ?? "platform"),
+    name: pick<string>(raw, "name") ?? "IAlestra Platform",
+    rfc: pick<string>(raw, "rfc") ?? "—",
+    industry: pick<string>(raw, "industry", "industry_name") ?? "Platform",
+    timezone: pick<string>(raw, "timezone") ?? "America/Mexico_City",
+    plan: (pick<string>(raw, "plan", "plan_name") as Tenant["plan"]) ?? "enterprise",
+    monthly_token_limit: pick<number>(raw, "monthly_token_limit") ?? 25_000_000,
   };
 }
 
@@ -67,38 +83,57 @@ export const useAuth = create<AuthState>()(
       tenant: null,
       status: "idle",
       error: null,
+
       async login(email, password) {
         set({ status: "authenticating", error: null });
         try {
           const data = (await authApi.login(email, password)) as Raw;
 
-          // Tokens may sit at the top level or under a `tokens`/`data`/`auth` object.
-          const tokens = (pick<Raw>(data, "tokens", "data", "auth") ?? data) as Raw;
+          // ── Extract tokens ────────────────────────────────────────────────
+          // The backend may return tokens at the top level or nested under
+          // a `tokens` / `data` / `auth` object.
+          const nested = (pick<Raw>(data, "tokens", "data", "auth") ?? data) as Raw;
+
           const access =
             pick<string>(data, "access_token", "accessToken", "access", "token", "jwt") ??
-            pick<string>(tokens, "access_token", "accessToken", "access", "token", "jwt");
+            pick<string>(nested, "access_token", "accessToken", "access", "token", "jwt");
+
           const refresh =
             pick<string>(data, "refresh_token", "refreshToken", "refresh") ??
-            pick<string>(tokens, "refresh_token", "refreshToken", "refresh");
+            pick<string>(nested, "refresh_token", "refreshToken", "refresh");
 
           if (!access) {
             throw new Error("Signed in, but the server returned no access token.");
           }
-          setAccessToken(access);
-          if (refresh) localStorage.setItem("ialestra.refresh", refresh);
 
+          // Persist tokens in memory + localStorage.
+          setAccessToken(access);
+          if (refresh) setRefreshToken(refresh);
+
+          // ── Extract user profile ──────────────────────────────────────────
           // Prefer a profile embedded in the login payload; otherwise fetch it.
-          let profile = pick<Raw>(data, "user", "admin", "profile", "super_admin", "account");
+          let profile = pick<Raw>(
+            data,
+            "user",
+            "admin",
+            "profile",
+            "super_admin",
+            "account",
+            "operator"
+          );
           if (!profile) {
             try {
               const me = (await authApi.me()) as Raw;
-              profile = pick<Raw>(me, "user", "admin", "profile") ?? me;
+              profile = pick<Raw>(me, "user", "admin", "profile", "super_admin") ?? me;
             } catch {
               /* profile route optional — fall back to the entered email */
             }
           }
 
-          const tenant = (pick<Tenant>(data, "tenant") as Tenant) ?? PLATFORM_TENANT;
+          // ── Extract tenant ────────────────────────────────────────────────
+          const rawTenant = pick<Raw>(data, "tenant", "organization", "company");
+          const tenant = rawTenant ? mapTenant(rawTenant) : PLATFORM_TENANT;
+
           set({ user: mapUser(profile, email), tenant, status: "authenticated" });
         } catch (err) {
           set({
@@ -108,19 +143,21 @@ export const useAuth = create<AuthState>()(
           throw err;
         }
       },
+
       async logout() {
         try {
           await authApi.logout();
         } finally {
-          setAccessToken(null);
-          localStorage.removeItem("ialestra.refresh");
+          clearTokens();
           set({ user: null, tenant: null, status: "idle" });
         }
       },
+
       clearError: () => set({ error: null }),
     }),
     {
       name: "ialestra.auth",
+      // Only persist the identity — tokens live in localStorage separately.
       partialize: (s) => ({ user: s.user, tenant: s.tenant, status: s.status }),
     }
   )

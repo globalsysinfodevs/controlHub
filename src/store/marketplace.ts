@@ -26,7 +26,7 @@ export const useMarket = create<MarketState>()(
         }
         try {
           const live = await marketplaceApi.list();
-          if (live.length > 0) set({ agents: live, hydrated: true });
+          if (live.length > 0) set({ agents: live as unknown as CatalogAgent[], hydrated: true });
           else set({ hydrated: true }); // keep seeded catalogue if backend is empty
         } catch {
           set({ hydrated: true }); // backend unreachable → keep local catalogue

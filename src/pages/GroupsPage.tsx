@@ -9,7 +9,7 @@ import { toast } from "@/components/ui/Toast";
 
 export function GroupsPage() {
   const { data: groups, isLoading } = useQuery({ queryKey: ["groups"], queryFn: () => groupsApi.list() });
-  const { data: agents } = useQuery({ queryKey: ["agents", "all"], queryFn: () => agentsApi.list({ page_size: 100 }) });
+  const { data: agents } = useQuery({ queryKey: ["agents", "all"], queryFn: () => agentsApi.list({ page_size: 100 }) as Promise<import("@/lib/api/types").Agent[]> });
 
   return (
     <div>

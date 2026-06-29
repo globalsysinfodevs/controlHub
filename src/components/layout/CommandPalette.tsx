@@ -27,7 +27,7 @@ export function CommandPalette() {
 
   const { data: agents } = useQuery({
     queryKey: ["agents", "palette"],
-    queryFn: () => agentsApi.list({ page_size: 100 }),
+    queryFn: () => agentsApi.list({ page_size: 100 }) as Promise<import("@/lib/api/types").Agent[]>,
     enabled: commandOpen,
   });
 

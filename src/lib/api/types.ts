@@ -38,7 +38,7 @@ export interface ApiError {
 
 // ── Domain models ────────────────────────────────────────────────────────────
 
-export type UserRole = "super_admin" | "admin" | "member" | "viewer";
+export type UserRole = "super_admin" | "admin" | "member" | "viewer" | "tenant_admin" | "platform_super_admin";
 export type UserStatus = "invited" | "active" | "inactive";
 
 export interface User {

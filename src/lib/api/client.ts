@@ -1,7 +1,10 @@
 /**
- * Unified API client. By default it runs against the in-memory mock backend so
- * the console is fully usable today. Set VITE_USE_MOCK=false to hit the live
- * FastAPI backend (proxied via Vite to http://localhost:8000).
+ * Unified API client.
+ *
+ * Set VITE_USE_MOCK=false (done in .env.local) to hit the live FastAPI backend.
+ * VITE_API_BASE_URL must point to the root of the FastAPI mount, e.g.:
+ *   https://…/find
+ * The client appends /api/v1/<path> automatically.
  *
  * Either way, callers receive the unwrapped `data` payload — the
  * `{ success, data, message }` envelope is handled here.
@@ -12,24 +15,42 @@ import { mockRequest } from "./mock/handlers";
 const USE_MOCK = (import.meta.env.VITE_USE_MOCK ?? "true") !== "false";
 
 /**
- * Absolute origin of the backend, e.g. "https://api.example.com".
- * - Leave EMPTY in local dev → requests go to relative "/api/v1/…" and the
- *   Vite dev proxy (vite.config.ts → VITE_API_TARGET) forwards them.
- * - Set to your DEPLOYED backend URL for production builds, where there is no
- *   dev proxy and the static frontend must call the backend directly.
+ * Absolute origin + mount prefix of the backend, e.g.
+ *   "https://host/find"
  * Trailing slashes and an accidental "/api/v1" suffix are trimmed.
  */
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "")
   .replace(/\/+$/, "")
   .replace(/\/api\/v1$/, "");
 
-/** Build a full backend URL for a versioned path ("/auth/login" → ".../api/v1/auth/login"). */
+/** Build a full backend URL for a versioned path ("/auth/login" → "<base>/api/v1/auth/login"). */
 export function apiUrl(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE}/api/v1${normalized}`;
 }
 
+/**
+ * Health check — hits GET /health (outside /api/v1).
+ * Returns true if the backend is reachable and healthy.
+ */
+export async function checkHealth(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/health`, {
+      method: "GET",
+      credentials: "omit",
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ── Token management ─────────────────────────────────────────────────────────
+
 let accessToken: string | null = localStorage.getItem("ialestra.token");
+let refreshToken: string | null = localStorage.getItem("ialestra.refresh");
+let refreshPromise: Promise<string> | null = null;
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
@@ -37,9 +58,26 @@ export function setAccessToken(token: string | null) {
   else localStorage.removeItem("ialestra.token");
 }
 
+export function setRefreshToken(token: string | null) {
+  refreshToken = token;
+  if (token) localStorage.setItem("ialestra.refresh", token);
+  else localStorage.removeItem("ialestra.refresh");
+}
+
 export function getAccessToken() {
   return accessToken;
 }
+
+export function getRefreshToken() {
+  return refreshToken;
+}
+
+export function clearTokens() {
+  setAccessToken(null);
+  setRefreshToken(null);
+}
+
+// ── Error class ───────────────────────────────────────────────────────────────
 
 export class ApiRequestError extends Error {
   status: number;
@@ -51,6 +89,8 @@ export class ApiRequestError extends Error {
     this.name = "ApiRequestError";
   }
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 interface RequestOptions {
   method?: string;
@@ -86,6 +126,12 @@ const LIVE_ROUTE_PATTERNS: RegExp[] = [
   /^\/audit-logs(\/|$)/,
   /^\/security(\/|$)/,
   /^\/conversations(\/|$)/,
+  /^\/models(\/|$)/,
+  /^\/tools(\/|$)/,
+  /^\/uploads(\/|$)/,
+  /^\/platform-config(\/|$)/,
+  /^\/super-admin(\/|$)/,
+  /^\/datasources(\/|$)/,
 ];
 
 function routeIsLive(path: string): boolean {
@@ -102,16 +148,50 @@ if (USE_MOCK) {
   );
 } else {
   console.info(
-    `%cIAlestra%c LIVE (hybrid) → ${API_BASE || "(relative /api/v1 via dev proxy)"}\n` +
-      `Real backend for: ${LIVE_ROUTE_PATTERNS.map((r) => r.source).join(", ")}\n` +
-      `All other screens (dashboard, agents, chat, users…) still use mock — those routes aren't deployed yet.`,
+    `%cIAlestra%c LIVE → ${API_BASE || "(relative /api/v1 via dev proxy)"}`,
     "background:#22d3ee;color:#06121a;padding:2px 6px;border-radius:4px;font-weight:600",
     "color:#94a3b8"
   );
 }
 
+// ── Token refresh ─────────────────────────────────────────────────────────────
+
+async function doRefresh(): Promise<string> {
+  const rt = refreshToken ?? localStorage.getItem("ialestra.refresh");
+  if (!rt) throw new ApiRequestError(401, "no_refresh_token", "Session expired. Please log in again.");
+
+  const res = await fetch(apiUrl("/auth/refresh"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: rt }),
+    credentials: "omit",
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success) {
+    clearTokens();
+    throw new ApiRequestError(401, "refresh_failed", "Session expired. Please log in again.");
+  }
+  const newAccess: string = json.data?.access_token ?? json.data?.token;
+  const newRefresh: string | undefined = json.data?.refresh_token;
+  setAccessToken(newAccess);
+  if (newRefresh) setRefreshToken(newRefresh);
+  return newAccess;
+}
+
+/** Ensure only one refresh call is in-flight at a time. */
+async function refreshOnce(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = doRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+// ── Core request ──────────────────────────────────────────────────────────────
+
 /** Core request. Returns the envelope's `data` (and attaches pagination when present). */
-async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+async function request<T>(path: string, opts: RequestOptions = {}, _retry = true): Promise<T> {
   const method = opts.method ?? "GET";
   const fullPath = withQuery(path, opts.query);
 
@@ -129,16 +209,10 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     }
   }
 
-  // Live backend (deployed route). In dev with an empty API_BASE this is a
-  // relative path the Vite proxy forwards; otherwise it is the absolute backend
-  // URL. Auth is bearer-token (OAuth2PasswordBearer), so no cookies are needed —
-  // "omit" keeps CORS simple against the cross-origin deployment.
-  //
-  // The access token from login is attached as `Authorization: Bearer <token>`
-  // on EVERY request. We fall back to localStorage so the header survives
-  // reloads and any in-memory desync.
+  // Live backend. Bearer token auth (OAuth2PasswordBearer).
   const bearer = accessToken ?? localStorage.getItem("ialestra.token");
-  const res = await fetch(`${apiUrl(path)}${withQuery("", opts.query)}`, {
+
+  const res = await fetch(apiUrl(withQuery(path, opts.query)), {
     method,
     headers: {
       "Content-Type": "application/json",
@@ -148,10 +222,20 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     credentials: "omit",
   });
 
+  // Auto-refresh on 401 (expired access token), then retry once.
+  if (res.status === 401 && _retry) {
+    try {
+      await refreshOnce();
+      return request<T>(path, opts, false);
+    } catch {
+      // Refresh failed — propagate the original 401.
+      clearTokens();
+      throw new ApiRequestError(401, "unauthorized", "Session expired. Please log in again.");
+    }
+  }
+
   const json = await res.json().catch(() => null);
   if (!res.ok || !json?.success) {
-    // The backend's error envelope is { success:false, error_code, message }.
-    // Also tolerate FastAPI defaults ({ detail }) and a nested { error:{...} }.
     const code = json?.error_code ?? json?.error?.code ?? "http_error";
     const message =
       json?.message ?? json?.error?.message ?? json?.detail ?? res.statusText;

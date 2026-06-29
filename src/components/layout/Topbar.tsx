@@ -8,6 +8,7 @@ import { useUi } from "@/store/ui";
 import { notificationsApi } from "@/lib/api/endpoints";
 import { Sigil } from "@/components/ui/Sigil";
 import { StatusDot } from "@/components/ui/Badge";
+import { BackendStatus } from "@/components/ui/BackendStatus";
 import { NotificationsPanel } from "./NotificationsPanel";
 
 export function Topbar({ title }: { title: string }) {
@@ -31,6 +32,7 @@ export function Topbar({ title }: { title: string }) {
           <StatusDot tone="ok" pulse />
           {tenant?.name}
         </span>
+        <BackendStatus />
       </div>
 
       <div className="flex items-center gap-2">

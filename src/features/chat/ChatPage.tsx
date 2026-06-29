@@ -30,7 +30,7 @@ const SUGGESTIONS: Record<string, string[]> = {
 export function ChatPage() {
   const { data: agents, isLoading } = useQuery({
     queryKey: ["agents", "chat"],
-    queryFn: () => agentsApi.list({ status: "active", page_size: 100 }),
+    queryFn: () => agentsApi.list({ status: "active", page_size: 100 }) as Promise<Agent[]>,
   });
 
   const [activeId, setActiveId] = useState<string | null>(null);

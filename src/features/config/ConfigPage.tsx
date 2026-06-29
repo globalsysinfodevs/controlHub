@@ -43,21 +43,23 @@ export function ConfigPage() {
 
   useEffect(() => {
     if (profileQ.data) {
+      const d = profileQ.data as Record<string, string | undefined>;
       setProfile({
-        name: profileQ.data.name ?? "",
-        rfc: profileQ.data.rfc ?? "",
-        billing_email: profileQ.data.billing_email ?? "",
-        timezone: profileQ.data.timezone ?? "UTC",
+        name: d.name ?? "",
+        rfc: d.rfc ?? "",
+        billing_email: d.billing_email ?? "",
+        timezone: d.timezone ?? "UTC",
       });
     }
   }, [profileQ.data]);
   useEffect(() => {
-    if (notifsQ.data) setNotifs({ ...DEFAULT_NOTIFS, ...notifsQ.data });
+    if (notifsQ.data) setNotifs({ ...DEFAULT_NOTIFS, ...(notifsQ.data as object) });
   }, [notifsQ.data]);
 
-  const tenantId = apiAccessQ.data?.tenant_id ?? "tenant_acme_7f3k2p";
-  const apiToken = apiAccessQ.data?.api_token ?? "sk-agentos-acme-X9kM2pL8vQr5tNwA3jHeBdCuFoZiYg";
-  const endpointBase = apiAccessQ.data?.endpoint_base ?? "https://api.agentos.io/v1/tenant_acme_7f3k2p";
+  const apiAccess = apiAccessQ.data as Record<string, string> | undefined;
+  const tenantId = apiAccess?.tenant_id ?? "tenant_acme_7f3k2p";
+  const apiToken = apiAccess?.api_token ?? "sk-agentos-acme-X9kM2pL8vQr5tNwA3jHeBdCuFoZiYg";
+  const endpointBase = apiAccess?.endpoint_base ?? "https://api.agentos.io/v1/tenant_acme_7f3k2p";
 
   async function saveGeneral() {
     if (isMock) {
@@ -219,7 +221,7 @@ function ModelosTab() {
   const modelsQ = useQuery({ queryKey: ["models", "all"], queryFn: () => modelsApi.listAll(), enabled: !isMock, retry: false });
   const availQ = useQuery({ queryKey: ["models", "available"], queryFn: () => modelsApi.available(), enabled: !isMock, retry: false });
 
-  const models = isMock ? MOCK_MODELS : modelsQ.data ?? [];
+  const models: LLMModel[] = isMock ? MOCK_MODELS : (modelsQ.data as LLMModel[] | undefined) ?? [];
   const available = isMock ? [] : availQ.data ?? [];
   const [adding, setAdding] = useState("");
 

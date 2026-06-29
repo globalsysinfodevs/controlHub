@@ -23,7 +23,7 @@ export function AgentsPage() {
 
   const { data: agents, isLoading } = useQuery({
     queryKey: ["agents", { search, category, status }],
-    queryFn: () => agentsApi.list({ search, category, status, page_size: 100 }),
+    queryFn: () => agentsApi.list({ search, category, status, page_size: 100 }) as Promise<Agent[]>,
   });
 
   // Deep-link: /agents?focus=<id> opens the drawer.

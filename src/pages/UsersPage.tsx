@@ -15,6 +15,8 @@ const ROLE_TONE: Record<UserRole, "brand" | "telemetry" | "neutral"> = {
   admin: "brand",
   member: "telemetry",
   viewer: "neutral",
+  tenant_admin: "brand",
+  platform_super_admin: "brand",
 };
 const STATUS_TONE: Record<UserStatus, "ok" | "warn" | "neutral"> = {
   active: "ok",
@@ -64,16 +66,16 @@ export function UsersPage() {
                     </div>
                   </td>
                   <td className="px-5 py-3">
-                    <Badge tone={ROLE_TONE[u.role]}>{u.role.replace("_", " ")}</Badge>
+                    <Badge tone={ROLE_TONE[u.role as UserRole] ?? "neutral"}>{u.role.replace("_", " ")}</Badge>
                   </td>
                   <td className="px-5 py-3">
-                    <Badge tone={STATUS_TONE[u.status]} dot>
+                    <Badge tone={STATUS_TONE[u.status as UserStatus] ?? "neutral"} dot>
                       {u.status}
                     </Badge>
                   </td>
                   <td className="hidden px-5 py-3 text-ink-muted md:table-cell">{u.group_ids.length}</td>
                   <td className="px-5 py-3 text-right text-2xs text-ink-faint">
-                    {u.last_active_at ? timeAgo(u.last_active_at) : "—"}
+                    {u.last_login ? timeAgo(u.last_login) : "—"}
                   </td>
                 </tr>
               ))}

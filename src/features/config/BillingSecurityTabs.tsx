@@ -97,10 +97,10 @@ export function SeguridadTab() {
         <h3 className="mb-1 text-sm font-semibold text-primary">Lista de IPs permitidas</h3>
         <p className="mb-4 text-xs text-g-dark">Solo estas IPs podrán acceder a la API del tenant</p>
         <div className="space-y-2">
-          {sec.allowed_ips.map((cidr, i) => (
+          {sec.allowed_ips.map((cidr: string, i: number) => (
             <div key={cidr + i} className="flex items-center justify-between rounded-xl border border-g-mid bg-g-light/50 px-4 py-2.5">
               <span className="font-mono text-sm text-primary">{cidr}</span>
-              <button onClick={() => setSec({ ...sec, allowed_ips: sec.allowed_ips.filter((_, j) => j !== i) })} className="text-g-dark hover:text-danger"><Trash2 className="h-4 w-4" /></button>
+              <button onClick={() => setSec({ ...sec, allowed_ips: sec.allowed_ips.filter((_: string, j: number) => j !== i) })} className="text-g-dark hover:text-danger"><Trash2 className="h-4 w-4" /></button>
             </div>
           ))}
         </div>

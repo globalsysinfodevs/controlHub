@@ -92,9 +92,10 @@ export function AgentDrawer({
       mode === "create" ? agentsApi.create(draft) : agentsApi.update(agent!.id, draft),
     onSuccess: (saved) => {
       invalidate();
+      const s = saved as { name?: string; version?: number };
       toast.success(
         mode === "create" ? "Agent created" : "Changes published",
-        mode === "create" ? `${saved.name} is ready as a draft.` : `Now on version ${saved.version}.`
+        mode === "create" ? `${s.name} is ready as a draft.` : `Now on version ${s.version}.`
       );
       onClose();
     },

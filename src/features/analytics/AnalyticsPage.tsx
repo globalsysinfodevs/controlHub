@@ -62,7 +62,7 @@ export function AnalyticsPage() {
   // Live dashboard (real backend). Disabled in mock mode; falls back below.
   const { data: live } = useQuery({
     queryKey: ["analytics", "dashboard", days],
-    queryFn: () => analyticsApi.dashboard(days as 7 | 30 | 90) as Promise<LiveDashboard>,
+    queryFn: () => analyticsApi.dashboard(days as 7 | 30 | 90) as unknown as Promise<LiveDashboard>,
     enabled: !isMock,
     retry: false,
   });
