@@ -1,11 +1,13 @@
 import { Navigate, createBrowserRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAuth } from "@/store/auth";
-import { AppShell } from "@/components/layout/AppShell";
 import { LoginPage } from "@/features/auth/LoginPage";
-import { MarketplacePage } from "@/features/marketplace/MarketplacePage";
-import { AnalyticsPage } from "@/features/analytics/AnalyticsPage";
-import { ConfigPage } from "@/features/config/ConfigPage";
+import { SuperAdminShell } from "@/features/super-admin/SuperAdminShell";
+import { PlatformOverview } from "@/features/super-admin/PlatformOverview";
+import { TenantsPage } from "@/features/super-admin/TenantsPage";
+import { IndustriesPage } from "@/features/super-admin/IndustriesPage";
+import { PlatformUsersPage } from "@/features/super-admin/PlatformUsersPage";
+import { AccountPage } from "@/features/super-admin/AccountPage";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const status = useAuth((s) => s.status);
@@ -15,7 +17,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
 function RedirectIfAuthed({ children }: { children: ReactNode }) {
   const status = useAuth((s) => s.status);
-  if (status === "authenticated") return <Navigate to="/marketplace" replace />;
+  if (status === "authenticated") return <Navigate to="/platform/overview" replace />;
   return <>{children}</>;
 }
 
@@ -29,18 +31,21 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: "/",
+    path: "/platform",
     element: (
       <RequireAuth>
-        <AppShell />
+        <SuperAdminShell />
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <Navigate to="/marketplace" replace /> },
-      { path: "marketplace", element: <MarketplacePage /> },
-      { path: "analytics", element: <AnalyticsPage /> },
-      { path: "config", element: <ConfigPage /> },
+      { index: true, element: <Navigate to="/platform/overview" replace /> },
+      { path: "overview", element: <PlatformOverview /> },
+      { path: "tenants", element: <TenantsPage /> },
+      { path: "industries", element: <IndustriesPage /> },
+      { path: "users", element: <PlatformUsersPage /> },
+      { path: "account", element: <AccountPage /> },
     ],
   },
-  { path: "*", element: <Navigate to="/marketplace" replace /> },
+  { path: "/", element: <Navigate to="/platform/overview" replace /> },
+  { path: "*", element: <Navigate to="/platform/overview" replace /> },
 ]);
