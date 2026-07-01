@@ -29,18 +29,25 @@ function pick<T = unknown>(obj: Raw | undefined | null, ...keys: string[]): T | 
 /**
  * Map the backend's login/profile payload into our User shape.
  * Reads defensively across common FastAPI field names.
+ * `roleHint` is used as a fallback when the payload doesn't include a role field.
  */
-function mapUser(raw: Raw | undefined, fallbackEmail: string): User {
+function mapUser(raw: Raw | undefined, fallbackEmail: string, roleHint?: string): User {
   const src = raw ?? {};
   const email = pick<string>(src, "email", "username") ?? fallbackEmail;
   const name =
     pick<string>(src, "name", "full_name", "display_name", "first_name") ??
     email.split("@")[0].replace(/[._]/g, " ");
+  // Prefer role from the payload; fall back to the hint detected from the login
+  // response; last resort is "super_admin" (legacy behaviour for super-admin login).
+  const role =
+    (pick<string>(src, "role") as UserRole) ??
+    (roleHint as UserRole | undefined) ??
+    "super_admin";
   return {
     id: String(pick(src, "id", "user_id", "sub", "_id") ?? "super-admin"),
     name,
     email,
-    role: (pick<string>(src, "role") as UserRole) ?? "super_admin",
+    role,
     status: "active",
     group_ids: [],
     last_active_at: new Date().toISOString(),
@@ -110,21 +117,46 @@ export const useAuth = create<AuthState>()(
           setAccessToken(access);
           if (refresh) setRefreshToken(refresh);
 
+          // ── Decode JWT to get role early ──────────────────────────────────
+          // The JWT payload is the most reliable source of the user's role
+          // because it's set by the backend at token-issue time.
+          let jwtRole: string | undefined;
+          try {
+            const payload = JSON.parse(atob(access.split(".")[1]));
+            jwtRole =
+              payload?.role ??
+              payload?.user_role ??
+              payload?.["https://ialestra.io/role"] ??
+              undefined;
+          } catch {
+            // Non-standard JWT or parse error — ignore.
+          }
+
           // ── Extract user profile ──────────────────────────────────────────
           // Prefer a profile embedded in the login payload; otherwise fetch it.
-          let profile = pick<Raw>(
-            data,
-            "user",
-            "admin",
-            "profile",
-            "super_admin",
-            "account",
-            "operator"
-          );
+          // Try nested keys first, then treat the flat response as the profile
+          // if it contains an email field (some backends return a flat object).
+          let profile =
+            pick<Raw>(data, "user", "admin", "profile", "super_admin", "account", "operator") ??
+            (pick<string>(data, "email") ? (data as Raw) : undefined);
+
+          // Detect role early — JWT claim > nested profile > flat data > nested token wrapper.
+          const earlyRole =
+            jwtRole ??
+            pick<string>(profile ?? {}, "role") ??
+            pick<string>(data, "role") ??
+            pick<string>(nested, "role");
+
           if (!profile) {
             try {
-              const me = (await authApi.me()) as unknown as Raw;
-              profile = pick<Raw>(me, "user", "admin", "profile", "super_admin") ?? me;
+              // Only platform_super_admin has a dedicated profile endpoint.
+              // All other roles rely on the login payload + JWT claims for identity.
+              if (earlyRole === "platform_super_admin" || !earlyRole) {
+                const me = (await authApi.me()) as unknown as Raw;
+                profile = pick<Raw>(me, "user", "admin", "profile", "super_admin", "data") ?? me;
+              }
+              // For tenant_admin / member / viewer: profile data comes from the
+              // login response body and JWT claims — no separate profile fetch needed.
             } catch {
               /* profile route optional — fall back to the entered email */
             }
@@ -134,7 +166,7 @@ export const useAuth = create<AuthState>()(
           const rawTenant = pick<Raw>(data, "tenant", "organization", "company");
           const tenant = rawTenant ? mapTenant(rawTenant) : PLATFORM_TENANT;
 
-          set({ user: mapUser(profile, email), tenant, status: "authenticated" });
+          set({ user: mapUser(profile, email, earlyRole), tenant, status: "authenticated" });
         } catch (err) {
           set({
             status: "idle",
@@ -157,6 +189,9 @@ export const useAuth = create<AuthState>()(
     }),
     {
       name: "ialestra.auth",
+      version: 2, // bump to invalidate stale sessions that had wrong role defaults
+      // On version mismatch, reset to unauthenticated so users log in fresh.
+      migrate: () => ({ user: null, tenant: null, status: "idle" as const, error: null }),
       // Only persist the identity — tokens live in localStorage separately.
       partialize: (s) => ({ user: s.user, tenant: s.tenant, status: s.status }),
     }

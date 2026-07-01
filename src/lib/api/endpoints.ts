@@ -113,8 +113,11 @@ export const authApi = {
   superAdminRefresh: (refresh_token: string) =>
     api.post<LoginResponse>("/auth/super-admin/refresh", { refresh_token } satisfies RefreshTokenRequest),
 
-  /** GET /api/v1/auth/super-admin/profile */
+  /** GET /api/v1/auth/super-admin/profile — only for platform_super_admin */
   me: () => api.get<SuperAdminProfile>("/auth/super-admin/profile"),
+
+  /** GET /api/v1/tenant/profile — for tenant_admin / member / viewer roles */
+  tenantMe: () => api.get<Record<string, unknown>>("/tenant/profile"),
 
   /** POST /api/v1/auth/super-admin/change-password */
   changePassword: (body: ChangePasswordRequest) =>
