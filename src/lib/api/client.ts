@@ -181,12 +181,15 @@ async function doRefresh(): Promise<string> {
     credentials: "omit",
   });
   const json = await res.json().catch(() => null);
-  if (!res.ok || !json?.success) {
+  if (!res.ok) {
     clearTokens();
     throw new ApiRequestError(401, "refresh_failed", "Session expired. Please log in again.");
   }
-  const newAccess: string = json.data?.access_token ?? json.data?.token;
-  const newRefresh: string | undefined = json.data?.refresh_token;
+  // Handle both envelope shape ({ success, data: { access_token } })
+  // and native FastAPI shape ({ access_token, refresh_token }).
+  const payload = (json?.success === true ? json.data : json) ?? {};
+  const newAccess: string = payload.access_token ?? payload.token;
+  const newRefresh: string | undefined = payload.refresh_token;
   setAccessToken(newAccess);
   if (newRefresh) setRefreshToken(newRefresh);
   return newAccess;
@@ -249,13 +252,30 @@ async function request<T>(path: string, opts: RequestOptions = {}, _retry = true
   }
 
   const json = await res.json().catch(() => null);
-  if (!res.ok || !json?.success) {
+
+  // Error path — non-2xx status.
+  if (!res.ok) {
     const code = json?.error_code ?? json?.error?.code ?? "http_error";
     const message =
       json?.message ?? json?.error?.message ?? json?.detail ?? res.statusText;
     throw new ApiRequestError(res.status, code, message);
   }
-  return attachPagination(json) as T;
+
+  // Success path — handle both response shapes:
+  //   1. Legacy/mock envelope: { success: true, data: <payload>, pagination?: … }
+  //   2. Native FastAPI response: the JSON IS the payload (no wrapper)
+  if (json !== null && typeof json === "object" && "success" in json) {
+    // Envelope shape — unwrap data.
+    if (!json.success) {
+      const code = json?.error_code ?? json?.error?.code ?? "http_error";
+      const message = json?.message ?? json?.error?.message ?? json?.detail ?? res.statusText;
+      throw new ApiRequestError(res.status, code, message);
+    }
+    return attachPagination(json) as T;
+  }
+
+  // Native FastAPI shape — return the raw JSON directly.
+  return json as T;
 }
 
 /** Surface pagination metadata on the returned array (non-enumerable). */
