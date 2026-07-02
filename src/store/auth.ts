@@ -9,12 +9,45 @@ interface AuthState {
   tenant: Tenant | null;
   status: "idle" | "authenticating" | "authenticated";
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   clearError: () => void;
 }
 
 type Raw = Record<string, unknown>;
+
+/** True for the platform super admin (frontend + backend role spellings). */
+export function isSuperAdmin(role?: string | null): boolean {
+  return role === "super_admin" || role === "platform_super_admin";
+}
+
+/** Landing route after login: super admin → console, tenant users → dashboard. */
+export function homePathForRole(role?: string | null): string {
+  return isSuperAdmin(role) ? "/marketplace" : "/dashboard";
+}
+
+/**
+ * Decode a JWT payload without verifying the signature.
+ * The backend embeds `sub`, `email`, `role`, and `tenant_id` in the token,
+ * which is our source of identity — there is no generic profile endpoint.
+ */
+function decodeJwt(token: string | undefined): Raw | null {
+  if (!token) return null;
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(
+      atob(b64)
+        .split("")
+        .map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
+        .join("")
+    );
+    return JSON.parse(json) as Raw;
+  } catch {
+    return null;
+  }
+}
 
 /** First non-null value among the given keys. */
 function pick<T = unknown>(obj: Raw | undefined | null, ...keys: string[]): T | undefined {
@@ -110,8 +143,15 @@ export const useAuth = create<AuthState>()(
           setAccessToken(access);
           if (refresh) setRefreshToken(refresh);
 
+          // ── Identity from the token ───────────────────────────────────────
+          // The login response returns tokens only; role/email/tenant live in
+          // the JWT claims. This is what tells us who logged in.
+          const claims = decodeJwt(access) ?? {};
+          const role = pick<string>(claims, "role");
+
           // ── Extract user profile ──────────────────────────────────────────
-          // Prefer a profile embedded in the login payload; otherwise fetch it.
+          // Prefer a profile embedded in the login payload. Only super admins
+          // have a profile endpoint — calling it as a tenant user would 403.
           let profile = pick<Raw>(
             data,
             "user",
@@ -121,20 +161,32 @@ export const useAuth = create<AuthState>()(
             "account",
             "operator"
           );
-          if (!profile) {
+          if (!profile && isSuperAdmin(role)) {
             try {
               const me = (await authApi.me()) as Raw;
               profile = pick<Raw>(me, "user", "admin", "profile", "super_admin") ?? me;
             } catch {
-              /* profile route optional — fall back to the entered email */
+              /* profile route optional — fall back to token claims */
             }
           }
 
+          // Merge claims (base) with any richer profile (overrides) so role,
+          // email, and id are always populated even without a profile payload.
+          const src: Raw = { ...claims, ...(profile ?? {}) };
+
           // ── Extract tenant ────────────────────────────────────────────────
           const rawTenant = pick<Raw>(data, "tenant", "organization", "company");
-          const tenant = rawTenant ? mapTenant(rawTenant) : PLATFORM_TENANT;
+          const tenant = isSuperAdmin(role)
+            ? rawTenant
+              ? mapTenant(rawTenant)
+              : PLATFORM_TENANT
+            : mapTenant(
+                rawTenant ?? { id: pick(claims, "tenant_id"), name: "Mi organización" }
+              );
 
-          set({ user: mapUser(profile, email), tenant, status: "authenticated" });
+          const user = mapUser(src, email);
+          set({ user, tenant, status: "authenticated" });
+          return user;
         } catch (err) {
           set({
             status: "idle",

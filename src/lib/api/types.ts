@@ -165,15 +165,31 @@ export interface AuditEntry {
   timestamp: string;
 }
 
+/** Notification kinds — mirrors the backend NotificationType enum (19 values). */
+export type NotificationType =
+  | "token_warning"
+  | "token_limit_reached"
+  | "group_token_warning"
+  | "user_token_warning"
+  | "pii_detected"
+  | "agent_updated"
+  | "agent_deprecated"
+  | "agent_execution_error"
+  | "execution_timeout"
+  | "execution_tool_failure"
+  | "user_invited"
+  | "user_activated"
+  | "user_removed"
+  | "subscription_expiring"
+  | "plan_updated"
+  | "system_announcement"
+  | "system_maintenance"
+  | "weekly_summary"
+  | "security_default_password";
+
 export interface AppNotification {
   id: string;
-  type:
-    | "token_limit"
-    | "agent_update"
-    | "pii_alert"
-    | "llm_deprecation"
-    | "execution_error"
-    | "portal_update";
+  type: NotificationType;
   title: string;
   body: string;
   read: boolean;

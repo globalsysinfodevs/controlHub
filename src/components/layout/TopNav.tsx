@@ -1,15 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, ChevronDown, LogOut } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/store/auth";
+import { isMock, subscribeAccessToken } from "@/lib/api/client";
+import { useAuth, isSuperAdmin } from "@/store/auth";
 import { useMarket } from "@/store/marketplace";
-import { notificationsApi } from "@/lib/api/endpoints";
+import { notificationsApi, normalizeNotification } from "@/lib/api/endpoints";
+import { toast } from "@/components/ui/Toast";
 import { NotificationsPanel } from "./NotificationsPanel";
 
-const TABS = [
+const DASHBOARD_TAB = { to: "/dashboard", label: "Dashboard" };
+const PLATFORM_TAB = { to: "/platform", label: "Plataforma" };
+const BASE_TABS = [
   { to: "/marketplace", label: "Marketplace" },
   { to: "/analytics", label: "Analytics" },
   { to: "/config", label: "Configuración" },
@@ -17,16 +21,58 @@ const TABS = [
 
 export function TopNav() {
   const { user, tenant, logout } = useAuth();
+  // Super admins get the platform console; tenant users get their dashboard.
+  const tabs = isSuperAdmin(user?.role)
+    ? [PLATFORM_TAB, ...BASE_TABS]
+    : [DASHBOARD_TAB, ...BASE_TABS];
   const agents = useMarket((s) => s.agents);
   const enabled = agents.filter((a) => a.enabled).length;
   const [notifOpen, setNotifOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const { data: notifications } = useQuery({
-    queryKey: ["notifications"],
-    queryFn: () => notificationsApi.list(),
+  const qc = useQueryClient();
+  const { data: unread = 0 } = useQuery({
+    queryKey: ["notifications", "unread-count"],
+    queryFn: () => notificationsApi.unreadCount(),
   });
-  const unread = Array.isArray(notifications) ? notifications.filter((n) => !n.read).length : 0;
+
+  // Real-time bell via Server-Sent Events. The server pushes a `notification`
+  // event per new item; we refresh the badge + panel and surface a toast.
+  // Skipped in mock mode (there is no backend to stream from). Because the JWT
+  // rides in the EventSource URL, we reconnect whenever the token rotates
+  // (refresh) and close the stream on logout.
+  useEffect(() => {
+    if (isMock) return;
+    let es: EventSource | null = null;
+
+    const onNotification = (e: MessageEvent) => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      try {
+        const n = normalizeNotification(JSON.parse(e.data));
+        if (n.title) toast.info(n.title, n.body || undefined);
+      } catch {
+        /* ignore malformed event payloads */
+      }
+    };
+
+    const open = () => {
+      es?.close();
+      es = notificationsApi.stream();
+      es.addEventListener("notification", onNotification as EventListener);
+    };
+
+    open();
+    const unsub = subscribeAccessToken((token) => {
+      if (token) open(); // token rotated → reconnect with the fresh token
+      else es?.close(); // logged out → stop streaming
+    });
+
+    return () => {
+      unsub();
+      es?.removeEventListener("notification", onNotification as EventListener);
+      es?.close();
+    };
+  }, [qc]);
 
   const orgName = tenant?.name ?? "Acme Corp";
 
@@ -42,7 +88,7 @@ export function TopNav() {
             </span>
           </div>
           <div className="hidden items-center gap-6 md:flex">
-            {TABS.map((t) => (
+            {tabs.map((t) => (
               <NavLink
                 key={t.to}
                 to={t.to}

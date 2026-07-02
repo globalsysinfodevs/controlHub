@@ -34,6 +34,7 @@ import type {
   Conversation,
   DashboardSummary,
   Group,
+  NotificationType,
   SecurityAlert,
   Tool,
   User,
@@ -92,7 +93,11 @@ export const authApi = {
   superAdminRefresh: (refresh_token: string) =>
     api.post<LoginResponse>("/auth/super-admin/refresh", { refresh_token } satisfies RefreshTokenRequest),
 
-  /** GET /api/v1/auth/super-admin/profile */
+  /**
+   * GET /api/v1/auth/super-admin/profile — super admin only.
+   * Tenant users have no profile endpoint; identity comes from the JWT claims.
+   * Callers must guard this with isSuperAdmin(role) to avoid a 403.
+   */
   me: () => api.get<LoginResponse>("/auth/super-admin/profile"),
 
   /** POST /api/v1/auth/super-admin/change-password */
@@ -117,53 +122,140 @@ export const authApi = {
 // Super Admin
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface IndustryCreate { name: string; description?: string | null; }
-export interface IndustryUpdate { name?: string; description?: string | null; }
+// ── Domain models (match backend super_admin/schemas.py exactly) ──────────────
+
+/** GET /super-admin/industries item — IndustryOut */
+export interface Industry {
+  id: string;
+  name: string;
+  icon: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** GET /super-admin/tenants item — TenantOut */
+export interface PlatformTenant {
+  id: string;
+  name: string;
+  billing_email: string;
+  rfc: string | null;
+  industry_id: string | null;
+  timezone: string;
+  status: string;
+  plan_name: string | null;
+  monthly_token_limit: number | null;
+  monthly_cost: number | null;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** GET /super-admin/tenants/{id} — TenantDetailOut (adds member counts) */
+export interface PlatformTenantDetail extends PlatformTenant {
+  user_count: number;
+  active_user_count: number;
+}
+
+/** POST /super-admin/tenants/{id}/invite-admin response — InvitationOut */
+export interface TenantInvitation {
+  id: string;
+  tenant_id: string;
+  user_id: string | null;
+  email: string;
+  name: string;
+  role: string;
+  expires_at: string;
+  created_at: string;
+}
+
+/** GET /super-admin/users item — PlatformUserOut */
+export interface PlatformUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  tenant_id: string | null;
+  auth_provider: string;
+  mfa_enabled: boolean;
+  last_login: string | null;
+  created_at: string;
+  updated_at: string;
+  is_deleted: boolean;
+}
+
+/** GET /super-admin/stats — PlatformStatsOut */
+export interface PlatformStats {
+  total_tenants: number;
+  active_tenants: number;
+  total_users: number;
+  active_users: number;
+  total_industries: number;
+}
+
+// ── Request bodies ────────────────────────────────────────────────────────────
+
+export interface IndustryCreate { name: string; icon?: string | null; }
+export interface IndustryUpdate { name?: string; icon?: string | null; }
 
 export interface TenantCreate {
   name: string;
-  rfc?: string | null;
   billing_email: string;
+  rfc?: string | null;
   industry_id?: string | null;
   timezone?: string;
   plan_name?: string | null;
+  monthly_token_limit?: number | null;
+  monthly_cost?: number | null;
 }
 export interface TenantUpdate {
   name?: string;
-  rfc?: string | null;
   billing_email?: string;
+  rfc?: string | null;
   industry_id?: string | null;
   timezone?: string;
   plan_name?: string | null;
+  monthly_token_limit?: number | null;
+  monthly_cost?: number | null;
 }
 export interface InviteTenantAdminRequest { name: string; email: string; }
 export interface PlatformUserStatusUpdate { status: "active" | "inactive"; }
 
 export const superAdminApi = {
   // Industries
-  listIndustries: () => api.get<{ id: string; name: string; description: string | null }[]>("/super-admin/industries"),
-  createIndustry: (body: IndustryCreate) => api.post<{ id: string; name: string }>("/super-admin/industries", body),
-  updateIndustry: (id: string, body: IndustryUpdate) => api.patch<{ id: string; name: string }>(`/super-admin/industries/${id}`, body),
+  listIndustries: (page = 1, page_size = 50) =>
+    api.get<Industry[]>("/super-admin/industries", { page, page_size }),
+  createIndustry: (body: IndustryCreate) => api.post<Industry>("/super-admin/industries", body),
+  updateIndustry: (id: string, body: IndustryUpdate) =>
+    api.patch<Industry>(`/super-admin/industries/${id}`, body),
   deleteIndustry: (id: string) => api.delete<null>(`/super-admin/industries/${id}`),
 
   // Tenants
-  listTenants: (page = 1, page_size = 20) => api.get<unknown[]>("/super-admin/tenants", { page, page_size }),
-  createTenant: (body: TenantCreate) => api.post<unknown>("/super-admin/tenants", body),
-  getTenant: (id: string) => api.get<unknown>(`/super-admin/tenants/${id}`),
-  updateTenant: (id: string, body: TenantUpdate) => api.patch<unknown>(`/super-admin/tenants/${id}`, body),
+  listTenants: (page = 1, page_size = 20, include_deleted = false) =>
+    api.get<PlatformTenant[]>("/super-admin/tenants", { page, page_size, include_deleted: String(include_deleted) }),
+  createTenant: (body: TenantCreate) => api.post<PlatformTenant>("/super-admin/tenants", body),
+  getTenant: (id: string) => api.get<PlatformTenantDetail>(`/super-admin/tenants/${id}`),
+  updateTenant: (id: string, body: TenantUpdate) =>
+    api.patch<PlatformTenant>(`/super-admin/tenants/${id}`, body),
   deleteTenant: (id: string) => api.delete<null>(`/super-admin/tenants/${id}`),
-  restoreTenant: (id: string) => api.post<unknown>(`/super-admin/tenants/${id}/restore`),
+  restoreTenant: (id: string) => api.post<PlatformTenant>(`/super-admin/tenants/${id}/restore`),
   inviteTenantAdmin: (tenantId: string, body: InviteTenantAdminRequest) =>
-    api.post<unknown>(`/super-admin/tenants/${tenantId}/invite-admin`, body),
+    api.post<TenantInvitation>(`/super-admin/tenants/${tenantId}/invite-admin`, body),
 
   // Platform users
-  listUsers: (page = 1, page_size = 20) => api.get<unknown[]>("/super-admin/users", { page, page_size }),
-  getUser: (id: string) => api.get<unknown>(`/super-admin/users/${id}`),
+  listUsers: (page = 1, page_size = 20, opts?: { tenant_id?: string; include_deleted?: boolean }) =>
+    api.get<PlatformUser[]>("/super-admin/users", {
+      page,
+      page_size,
+      tenant_id: opts?.tenant_id,
+      include_deleted: opts?.include_deleted ? "true" : undefined,
+    }),
+  getUser: (id: string) => api.get<PlatformUser>(`/super-admin/users/${id}`),
   updateUserStatus: (id: string, body: PlatformUserStatusUpdate) =>
-    api.patch<unknown>(`/super-admin/users/${id}/status`, body),
+    api.patch<PlatformUser>(`/super-admin/users/${id}/status`, body),
 
   // Stats
-  stats: () => api.get<unknown>("/super-admin/stats"),
+  stats: () => api.get<PlatformStats>("/super-admin/stats"),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -197,25 +289,51 @@ export interface PlanUpdate {
   max_agents?: number | null;
   max_users?: number | null;
 }
-export interface ModelDefaults { default_model_id: string; }
+/** GET/PUT /tenant/model-defaults — matches backend ModelDefaults schema. */
+export interface ModelDefaults {
+  default_analysis_model_id: string | null;
+  default_chat_model_id: string | null;
+}
+
+// ── Tenant output models (match tenant/schemas.py) ────────────────────────────
+
+/** GET /tenant/profile — TenantProfileOut */
+export interface TenantProfile {
+  id: string;
+  name: string;
+  rfc: string | null;
+  billing_email: string;
+  industry_id: string | null;
+  timezone: string;
+  status: string;
+  plan_name: string | null;
+  created_at: string;
+}
+
+/** GET /tenant/api-access — ApiAccessOut */
+export interface TenantApiAccess {
+  tenant_id: string;
+  api_token: string | null;
+  endpoint_base: string;
+}
 
 export const tenantApi = {
-  profile: () => api.get<unknown>("/tenant/profile"),
-  updateProfile: (body: TenantProfileUpdate) => api.put<unknown>("/tenant/profile", body),
-  apiAccess: () => api.get<unknown>("/tenant/api-access"),
-  regenerateApiToken: () => api.post<unknown>("/tenant/api-access/regenerate"),
-  notifications: () => api.get<unknown>("/tenant/notifications-config"),
-  updateNotifications: (body: NotificationsConfig) => api.put<unknown>("/tenant/notifications-config", body),
-  plan: () => api.get<unknown>("/tenant/plan"),
-  updatePlan: (body: PlanUpdate) => api.put<unknown>("/tenant/plan", body),
-  security: () => api.get<unknown>("/tenant/security-settings"),
-  updateSecurity: (body: SecuritySettingsUpdate) => api.put<unknown>("/tenant/security-settings", body),
+  profile: () => api.get<TenantProfile>("/tenant/profile"),
+  updateProfile: (body: TenantProfileUpdate) => api.put<TenantProfile>("/tenant/profile", body),
+  apiAccess: () => api.get<TenantApiAccess>("/tenant/api-access"),
+  regenerateApiToken: () => api.post<TenantApiAccess>("/tenant/api-access/regenerate"),
+  notifications: () => api.get<NotificationsConfig>("/tenant/notifications-config"),
+  updateNotifications: (body: NotificationsConfig) => api.put<NotificationsConfig>("/tenant/notifications-config", body),
+  plan: () => api.get<TenantPlan>("/tenant/plan"),
+  updatePlan: (body: PlanUpdate) => api.put<TenantPlan>("/tenant/plan", body),
+  security: () => api.get<TenantSecurity>("/tenant/security-settings"),
+  updateSecurity: (body: SecuritySettingsUpdate) => api.put<TenantSecurity>("/tenant/security-settings", body),
   /** GET /api/v1/tenant/models — list active LLM models for this tenant */
-  models: () => api.get<unknown[]>("/tenant/models"),
+  models: () => api.get<LLMModel[]>("/tenant/models"),
   /** GET /api/v1/tenant/model-defaults */
-  modelDefaults: () => api.get<unknown>("/tenant/model-defaults"),
+  modelDefaults: () => api.get<ModelDefaults>("/tenant/model-defaults"),
   /** PUT /api/v1/tenant/model-defaults */
-  updateModelDefaults: (body: ModelDefaults) => api.put<unknown>("/tenant/model-defaults", body),
+  updateModelDefaults: (body: ModelDefaults) => api.put<ModelDefaults>("/tenant/model-defaults", body),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -484,16 +602,62 @@ export const datasourcesApi = {
 
 export interface MarkReadRequest { notification_ids: string[]; }
 
+/** The 19 valid notification kinds (mirrors backend NotificationType). */
+const NOTIFICATION_TYPES: readonly NotificationType[] = [
+  "token_warning", "token_limit_reached", "group_token_warning", "user_token_warning",
+  "pii_detected", "agent_updated", "agent_deprecated", "agent_execution_error",
+  "execution_timeout", "execution_tool_failure", "user_invited", "user_activated",
+  "user_removed", "subscription_expiring", "plan_updated", "system_announcement",
+  "system_maintenance", "weekly_summary", "security_default_password",
+];
+const KNOWN_TYPES = new Set<string>(NOTIFICATION_TYPES);
+
+/** Legacy UI-category values (older mock data) → their closest backend kind. */
+const LEGACY_TYPE_ALIAS: Record<string, NotificationType> = {
+  token_limit: "token_limit_reached",
+  agent_update: "agent_updated",
+  pii_alert: "pii_detected",
+  llm_deprecation: "agent_deprecated",
+  execution_error: "agent_execution_error",
+  portal_update: "system_announcement",
+};
+
+/**
+ * Normalize a raw notification into the UI's AppNotification shape.
+ * Tolerant of both the live backend (`message` / `is_read` / enum `type`) and
+ * the mock payload (`body` / `read`). Unknown types fall back to an
+ * announcement so the bell can always render.
+ */
+export function normalizeNotification(raw: Record<string, unknown>): AppNotification {
+  const rawType = String(raw.type ?? "");
+  const type: NotificationType = KNOWN_TYPES.has(rawType)
+    ? (rawType as NotificationType)
+    : LEGACY_TYPE_ALIAS[rawType] ?? "system_announcement";
+  return {
+    id: String(raw.id ?? ""),
+    type,
+    title: String(raw.title ?? ""),
+    body: String(raw.message ?? raw.body ?? ""),
+    read: Boolean(raw.is_read ?? raw.read ?? false),
+    created_at: String(raw.created_at ?? ""),
+  };
+}
+
 export const notificationsApi = {
   /** GET /api/v1/notifications?unread_only&page&page_size */
-  list: (unreadOnly = false, page = 1, page_size = 50) =>
-    api.get<AppNotification[]>("/notifications", {
+  list: async (unreadOnly = false, page = 1, page_size = 50): Promise<AppNotification[]> => {
+    const raw = await api.get<Record<string, unknown>[]>("/notifications", {
       unread_only: unreadOnly ? "true" : undefined,
       page,
       page_size,
-    }),
-  /** GET /api/v1/notifications/unread-count */
-  unreadCount: () => api.get<{ count: number } | number>("/notifications/unread-count"),
+    });
+    return (raw ?? []).map(normalizeNotification);
+  },
+  /** GET /api/v1/notifications/unread-count — normalized to a plain number. */
+  unreadCount: async (): Promise<number> => {
+    const r = await api.get<{ count: number } | number>("/notifications/unread-count");
+    return typeof r === "number" ? r : r?.count ?? 0;
+  },
   /** POST /api/v1/notifications/mark-read */
   markRead: (ids: string[]) =>
     api.post<null>("/notifications/mark-read", { notification_ids: ids } satisfies MarkReadRequest),

@@ -43,7 +43,7 @@ export function ConfigPage() {
 
   useEffect(() => {
     if (profileQ.data) {
-      const d = profileQ.data as Record<string, string | undefined>;
+      const d = profileQ.data;
       setProfile({
         name: d.name ?? "",
         rfc: d.rfc ?? "",
@@ -53,10 +53,10 @@ export function ConfigPage() {
     }
   }, [profileQ.data]);
   useEffect(() => {
-    if (notifsQ.data) setNotifs({ ...DEFAULT_NOTIFS, ...(notifsQ.data as object) });
+    if (notifsQ.data) setNotifs({ ...DEFAULT_NOTIFS, ...notifsQ.data });
   }, [notifsQ.data]);
 
-  const apiAccess = apiAccessQ.data as Record<string, string> | undefined;
+  const apiAccess = apiAccessQ.data;
   const tenantId = apiAccess?.tenant_id ?? "tenant_acme_7f3k2p";
   const apiToken = apiAccess?.api_token ?? "sk-agentos-acme-X9kM2pL8vQr5tNwA3jHeBdCuFoZiYg";
   const endpointBase = apiAccess?.endpoint_base ?? "https://api.agentos.io/v1/tenant_acme_7f3k2p";

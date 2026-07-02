@@ -214,10 +214,10 @@ export const securityAlerts: SecurityAlert[] = [
 ];
 
 export const notifications: AppNotification[] = [
-  { id: "ntf_1", type: "pii_alert", title: "PII detected in execution", body: "Critical: national ID exposed via Query Builder.", read: false, created_at: isoDaysAgo(0, 6) },
-  { id: "ntf_2", type: "token_limit", title: "Approaching monthly limit", body: "You have used 78% of the 25M token allotment.", read: false, created_at: isoDaysAgo(0, 9) },
-  { id: "ntf_3", type: "agent_update", title: "Revenue Analyst updated", body: "Diego Salazar published version 14.", read: true, created_at: isoDaysAgo(1, 9) },
-  { id: "ntf_4", type: "llm_deprecation", title: "Model deprecation notice", body: "claude-haiku-4-5 retires Sep 30. Plan a migration.", read: true, created_at: isoDaysAgo(3, 0) },
+  { id: "ntf_1", type: "pii_detected", title: "PII detected in execution", body: "Critical: national ID exposed via Query Builder.", read: false, created_at: isoDaysAgo(0, 6) },
+  { id: "ntf_2", type: "token_warning", title: "Approaching monthly limit", body: "You have used 78% of the 25M token allotment.", read: false, created_at: isoDaysAgo(0, 9) },
+  { id: "ntf_3", type: "agent_updated", title: "Revenue Analyst updated", body: "Diego Salazar published version 14.", read: true, created_at: isoDaysAgo(1, 9) },
+  { id: "ntf_4", type: "agent_deprecated", title: "Model deprecation notice", body: "claude-haiku-4-5 retires Sep 30. Plan a migration.", read: true, created_at: isoDaysAgo(3, 0) },
 ];
 
 function buildAudit(): AuditEntry[] {

@@ -52,10 +52,24 @@ let accessToken: string | null = localStorage.getItem("ialestra.token");
 let refreshToken: string | null = localStorage.getItem("ialestra.refresh");
 let refreshPromise: Promise<string> | null = null;
 
+// Listeners notified when the access token changes (login, refresh, logout).
+// Used by the SSE stream to reconnect with a fresh token — EventSource carries
+// the token in its URL, so a rotated token needs a new connection.
+type TokenListener = (token: string | null) => void;
+const tokenListeners = new Set<TokenListener>();
+
+/** Subscribe to access-token changes. Returns an unsubscribe function. */
+export function subscribeAccessToken(fn: TokenListener): () => void {
+  tokenListeners.add(fn);
+  return () => tokenListeners.delete(fn);
+}
+
 export function setAccessToken(token: string | null) {
+  const changed = token !== accessToken;
   accessToken = token;
   if (token) localStorage.setItem("ialestra.token", token);
   else localStorage.removeItem("ialestra.token");
+  if (changed) tokenListeners.forEach((fn) => fn(token));
 }
 
 export function setRefreshToken(token: string | null) {

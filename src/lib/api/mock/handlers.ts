@@ -37,6 +37,41 @@ function persistAgents() {
   }
 }
 
+// ── Super Admin mock state (in-memory, resets on reload) ─────────────────────
+let _saSeq = 100;
+const saId = (prefix: string) => `${prefix}_${++_saSeq}`;
+const saNow = () => new Date().toISOString();
+
+interface MockIndustry { id: string; name: string; icon: string | null; created_at: string; updated_at: string; }
+const saIndustries: MockIndustry[] = [
+  { id: "ind_tech", name: "Tecnología", icon: "💻", created_at: saNow(), updated_at: saNow() },
+  { id: "ind_fin", name: "Finanzas", icon: "🏦", created_at: saNow(), updated_at: saNow() },
+  { id: "ind_health", name: "Salud", icon: "🏥", created_at: saNow(), updated_at: saNow() },
+  { id: "ind_retail", name: "Retail", icon: "🛍️", created_at: saNow(), updated_at: saNow() },
+];
+
+interface MockTenant {
+  id: string; name: string; billing_email: string; rfc: string | null; industry_id: string | null;
+  timezone: string; status: string; plan_name: string | null; monthly_token_limit: number | null;
+  monthly_cost: number | null; is_deleted: boolean; created_at: string; updated_at: string;
+}
+const saTenants: MockTenant[] = [
+  { id: "tnt_acme", name: "Acme S.A.", billing_email: "facturacion@acme.mx", rfc: "ACM010101AAA", industry_id: "ind_tech", timezone: "America/Mexico_City", status: "active", plan_name: "Enterprise", monthly_token_limit: 25_000_000, monthly_cost: 4999, is_deleted: false, created_at: saNow(), updated_at: saNow() },
+  { id: "tnt_globex", name: "Globex", billing_email: "billing@globex.com", rfc: null, industry_id: "ind_fin", timezone: "UTC", status: "active", plan_name: "Pro", monthly_token_limit: 8_000_000, monthly_cost: 1499, is_deleted: false, created_at: saNow(), updated_at: saNow() },
+  { id: "tnt_initech", name: "Initech", billing_email: "ap@initech.io", rfc: null, industry_id: "ind_retail", timezone: "America/Mexico_City", status: "suspended", plan_name: "Starter", monthly_token_limit: 2_000_000, monthly_cost: 499, is_deleted: false, created_at: saNow(), updated_at: saNow() },
+];
+
+interface MockPlatformUser {
+  id: string; email: string; name: string; role: string; status: string; tenant_id: string | null;
+  auth_provider: string; mfa_enabled: boolean; last_login: string | null; created_at: string; updated_at: string; is_deleted: boolean;
+}
+const saUsers: MockPlatformUser[] = [
+  { id: "usr_root", email: "super@ialestra.mx", name: "Super Admin", role: "platform_super_admin", status: "active", tenant_id: null, auth_provider: "local", mfa_enabled: true, last_login: saNow(), created_at: saNow(), updated_at: saNow(), is_deleted: false },
+  { id: "usr_ana", email: "ana@acme.mx", name: "Ana Torres", role: "tenant_admin", status: "active", tenant_id: "tnt_acme", auth_provider: "local", mfa_enabled: false, last_login: saNow(), created_at: saNow(), updated_at: saNow(), is_deleted: false },
+  { id: "usr_beto", email: "beto@globex.com", name: "Beto Ruiz", role: "member", status: "invited", tenant_id: "tnt_globex", auth_provider: "local", mfa_enabled: false, last_login: null, created_at: saNow(), updated_at: saNow(), is_deleted: false },
+  { id: "usr_caro", email: "caro@initech.io", name: "Carolina Díaz", role: "viewer", status: "inactive", tenant_id: "tnt_initech", auth_provider: "azure_ad", mfa_enabled: true, last_login: saNow(), created_at: saNow(), updated_at: saNow(), is_deleted: false },
+];
+
 function ok<T>(data: T, message = "Operation completed successfully"): ApiSuccess<T> {
   return { success: true, data, message };
 }
@@ -95,6 +130,110 @@ export async function mockRequest(
   }
   if (m === "POST" && p === "/auth/super-admin/refresh") {
     return ok({ access_token: "mock.access.refreshed", refresh_token: "mock.refresh.refreshed", token_type: "bearer", expires_in: 1800 });
+  }
+
+  // ── Super Admin · platform stats ─────────────────────────────────────
+  if (m === "GET" && p === "/super-admin/stats") {
+    const liveTenants = saTenants.filter((t) => !t.is_deleted);
+    const liveUsers = saUsers.filter((u) => !u.is_deleted);
+    return ok(
+      {
+        total_tenants: liveTenants.length,
+        active_tenants: liveTenants.filter((t) => t.status === "active").length,
+        total_users: liveUsers.length,
+        active_users: liveUsers.filter((u) => u.status === "active").length,
+        total_industries: saIndustries.length,
+      },
+      "Stats retrieved"
+    );
+  }
+
+  // ── Super Admin · industries ─────────────────────────────────────────
+  if (m === "GET" && p === "/super-admin/industries") {
+    return paginate([...saIndustries], q, "Industries retrieved");
+  }
+  if (m === "POST" && p === "/super-admin/industries") {
+    const b = (body ?? {}) as Json;
+    const ind: MockIndustry = { id: saId("ind"), name: String(b.name ?? ""), icon: (b.icon as string) ?? null, created_at: saNow(), updated_at: saNow() };
+    saIndustries.unshift(ind);
+    return ok(ind, "Industry created");
+  }
+  if ((m === "PATCH" || m === "DELETE") && /^\/super-admin\/industries\/[^/]+$/.test(p)) {
+    const id = p.split("/")[3];
+    const idx = saIndustries.findIndex((i) => i.id === id);
+    if (idx === -1) throw apiError(404, "not_found", "Industry not found");
+    if (m === "DELETE") {
+      saIndustries.splice(idx, 1);
+      return ok(null, "Industry deleted");
+    }
+    const b = (body ?? {}) as Json;
+    saIndustries[idx] = { ...saIndustries[idx], ...(b.name != null ? { name: String(b.name) } : {}), ...(b.icon !== undefined ? { icon: (b.icon as string) ?? null } : {}), updated_at: saNow() };
+    return ok(saIndustries[idx], "Industry updated");
+  }
+
+  // ── Super Admin · tenants ────────────────────────────────────────────
+  if (m === "GET" && p === "/super-admin/tenants") {
+    const includeDeleted = q.get("include_deleted") === "true";
+    return paginate(saTenants.filter((t) => includeDeleted || !t.is_deleted), q, "Tenants retrieved");
+  }
+  if (m === "POST" && p === "/super-admin/tenants") {
+    const b = (body ?? {}) as Json;
+    const t: MockTenant = {
+      id: saId("tnt"), name: String(b.name ?? ""), billing_email: String(b.billing_email ?? ""),
+      rfc: (b.rfc as string) ?? null, industry_id: (b.industry_id as string) ?? null,
+      timezone: String(b.timezone ?? "UTC"), status: "active", plan_name: (b.plan_name as string) ?? null,
+      monthly_token_limit: (b.monthly_token_limit as number) ?? null, monthly_cost: (b.monthly_cost as number) ?? null,
+      is_deleted: false, created_at: saNow(), updated_at: saNow(),
+    };
+    saTenants.unshift(t);
+    return ok(t, "Tenant created");
+  }
+  if (m === "POST" && /^\/super-admin\/tenants\/[^/]+\/restore$/.test(p)) {
+    const id = p.split("/")[3];
+    const t = saTenants.find((x) => x.id === id);
+    if (!t) throw apiError(404, "not_found", "Tenant not found");
+    t.is_deleted = false; t.status = "active"; t.updated_at = saNow();
+    return ok(t, "Tenant restored");
+  }
+  if (m === "POST" && /^\/super-admin\/tenants\/[^/]+\/invite-admin$/.test(p)) {
+    const id = p.split("/")[3];
+    const b = (body ?? {}) as Json;
+    return ok({ id: saId("inv"), tenant_id: id, user_id: null, email: String(b.email ?? ""), name: String(b.name ?? ""), role: "tenant_admin", expires_at: saNow(), created_at: saNow() }, "Invitation sent");
+  }
+  if ((m === "GET" || m === "PATCH" || m === "DELETE") && /^\/super-admin\/tenants\/[^/]+$/.test(p)) {
+    const id = p.split("/")[3];
+    const t = saTenants.find((x) => x.id === id);
+    if (!t) throw apiError(404, "not_found", "Tenant not found");
+    if (m === "GET") return ok({ ...t, user_count: saUsers.filter((u) => u.tenant_id === id).length, active_user_count: saUsers.filter((u) => u.tenant_id === id && u.status === "active").length }, "Tenant retrieved");
+    if (m === "DELETE") { t.is_deleted = true; t.status = "inactive"; t.updated_at = saNow(); return ok(null, "Tenant deactivated"); }
+    const b = (body ?? {}) as Json;
+    Object.assign(t, b, { updated_at: saNow() });
+    return ok(t, "Tenant updated");
+  }
+
+  // ── Super Admin · platform users ─────────────────────────────────────
+  if (m === "GET" && p === "/super-admin/users") {
+    const includeDeleted = q.get("include_deleted") === "true";
+    const tenantId = q.get("tenant_id");
+    return paginate(
+      saUsers.filter((u) => (includeDeleted || !u.is_deleted) && (!tenantId || u.tenant_id === tenantId)),
+      q,
+      "Users retrieved"
+    );
+  }
+  if (m === "PATCH" && /^\/super-admin\/users\/[^/]+\/status$/.test(p)) {
+    const id = p.split("/")[3];
+    const u = saUsers.find((x) => x.id === id);
+    if (!u) throw apiError(404, "not_found", "User not found");
+    const b = (body ?? {}) as Json;
+    u.status = String(b.status ?? u.status); u.updated_at = saNow();
+    return ok(u, `User status updated to '${u.status}'`);
+  }
+  if (m === "GET" && /^\/super-admin\/users\/[^/]+$/.test(p)) {
+    const id = p.split("/")[3];
+    const u = saUsers.find((x) => x.id === id);
+    if (!u) throw apiError(404, "not_found", "User not found");
+    return ok(u, "User retrieved");
   }
 
   // ── Dashboard ────────────────────────────────────────────────────────

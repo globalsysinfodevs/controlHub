@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, Bot, Gauge, Lock, Mail, ShieldCheck } from "lucide-react";
-import { useAuth } from "@/store/auth";
+import { useAuth, homePathForRole } from "@/store/auth";
 import { toast } from "@/components/ui/Toast";
 
 const HIGHLIGHTS = [
@@ -20,9 +20,9 @@ export function LoginPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await login(email, password);
+      const user = await login(email, password);
       toast.success("Sesión iniciada", "Bienvenido a iAlestra Agentic Hub");
-      navigate("/marketplace");
+      navigate(homePathForRole(user.role));
     } catch {
       /* error en el store */
     }
@@ -127,9 +127,10 @@ export function LoginPage() {
           <div className="mt-6 rounded-xl border border-g-mid bg-white px-3.5 py-3">
             <p className="text-2xs font-semibold uppercase tracking-wider text-g-dark">Acceso</p>
             <p className="mt-1.5 text-2xs leading-relaxed text-g-dark">
-              Con el backend en vivo (<code className="text-primary">VITE_USE_MOCK=false</code>) usa tus credenciales de
-              <span className="text-primary"> super-admin</span> — la autenticación llega a
-              <span className="font-mono"> /api/v1/auth/super-admin/login</span>.
+              Usa las credenciales de tu cuenta. Cada rol accede a su espacio de
+              trabajo automáticamente —{" "}
+              <span className="text-primary">super-admin</span> a la consola de
+              plataforma y el resto a su panel.
             </p>
           </div>
         </motion.div>
