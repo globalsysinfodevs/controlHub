@@ -50,7 +50,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       )}
       {...props}
     >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : leftIcon}
+      {/* Stable span prevents browser-extension DOM injection from crashing
+          React's insertBefore reconciliation when icons swap. */}
+      <span className="contents">
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : leftIcon}
+      </span>
       {children}
       {!loading && rightIcon}
     </button>

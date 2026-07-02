@@ -165,11 +165,15 @@ export function NotificationsPanel({ open, onClose }: Props) {
                   className="flex items-center gap-1 text-2xs font-medium text-brand-600 transition-colors hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
                   title="Marcar todas como leídas"
                 >
-                  {markAllMut.isPending ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <CheckCheck className="h-3 w-3" />
-                  )}
+                  {/* Stable span prevents browser-extension DOM injection from
+                      crashing React's insertBefore reconciliation on icon swap. */}
+                  <span className="contents">
+                    {markAllMut.isPending ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <CheckCheck className="h-3 w-3" />
+                    )}
+                  </span>
                   Marcar todo leído
                 </button>
               </div>
@@ -250,15 +254,18 @@ function NotificationRow({ notification: n, onMarkRead, isPending }: RowProps) {
           : "cursor-pointer bg-brand-500/[0.04] hover:bg-brand-500/[0.08]"
       }`}
     >
-      {/* Icon badge */}
+      {/* Icon badge — stable inner span prevents browser-extension DOM injection
+          from crashing React's insertBefore reconciliation on icon swap. */}
       <span
         className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${TONE_CLS[tone]}`}
       >
-        {isPending ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Icon className="h-4 w-4" />
-        )}
+        <span className="contents">
+          {isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Icon className="h-4 w-4" />
+          )}
+        </span>
       </span>
 
       {/* Content */}

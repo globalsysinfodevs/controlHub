@@ -202,12 +202,17 @@ export function PlatformConfigPage() {
                   disabled={saving[entry.key]}
                   className="flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-60"
                 >
-                  {saving[entry.key] ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Save className="h-3.5 w-3.5" />
-                  )}
-                  Guardar
+                  {/* Stable span wrapper prevents browser-extension DOM injection
+                      from causing React's insertBefore reconciliation to crash
+                      when the icon swaps between states. */}
+                  <span className="flex items-center gap-1.5">
+                    {saving[entry.key] ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5" />
+                    )}
+                    Guardar
+                  </span>
                 </button>
               </div>
 
@@ -263,12 +268,14 @@ export function PlatformConfigPage() {
                 disabled={adding || !newKey.trim()}
                 className="flex shrink-0 items-center gap-1.5 rounded-xl bg-ok px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-60"
               >
-                {adding ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Plus className="h-3.5 w-3.5" />
-                )}
-                Añadir
+                <span className="flex items-center gap-1.5">
+                  {adding ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="h-3.5 w-3.5" />
+                  )}
+                  Añadir
+                </span>
               </button>
             </div>
             <p className="mt-2 text-2xs text-ink-faint">

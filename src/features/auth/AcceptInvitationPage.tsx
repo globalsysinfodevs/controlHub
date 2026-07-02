@@ -138,7 +138,9 @@ export function AcceptInvitationPage() {
                     onClick={() => setShowPw((v) => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-g-dark hover:text-primary"
                   >
-                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    <span className="contents">
+                      {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -165,11 +167,13 @@ export function AcceptInvitationPage() {
                 disabled={submitting || !password || !confirm || password !== confirm}
                 className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-white transition-colors hover:bg-primary-600 disabled:opacity-60"
               >
-                {submitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ShieldCheck className="h-4 w-4" />
-                )}
+                <span className="contents">
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="h-4 w-4" />
+                  )}
+                </span>
                 Activar cuenta
               </button>
             </form>
