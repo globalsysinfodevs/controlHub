@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Tenant, User, UserRole } from "@/lib/api/types";
 import { setAccessToken, setRefreshToken, clearTokens } from "@/lib/api/client";
-import { authApi } from "@/lib/api/endpoints";
+import { authApi, tenantApi } from "@/lib/api/endpoints";
 
 interface AuthState {
   user: User | null;
@@ -176,13 +176,27 @@ export const useAuth = create<AuthState>()(
 
           // ── Extract tenant ────────────────────────────────────────────────
           const rawTenant = pick<Raw>(data, "tenant", "organization", "company");
-          const tenant = isSuperAdmin(role)
-            ? rawTenant
-              ? mapTenant(rawTenant)
-              : PLATFORM_TENANT
-            : mapTenant(
-                rawTenant ?? { id: pick(claims, "tenant_id"), name: "Mi organización" }
-              );
+
+          let tenant: Tenant;
+          if (isSuperAdmin(role)) {
+            tenant = rawTenant ? mapTenant(rawTenant) : PLATFORM_TENANT;
+          } else {
+            // For tenant users the login response rarely embeds tenant info.
+            // Fetch /tenant/profile (authenticated with the token we just set)
+            // to get the real company name. Fall back gracefully on any error.
+            let tenantProfile: Raw | undefined = rawTenant ?? undefined;
+            if (!tenantProfile || !pick<string>(tenantProfile, "name")) {
+              try {
+                const profileRes = await tenantApi.profile();
+                tenantProfile = profileRes as unknown as Raw;
+              } catch {
+                /* profile fetch optional — fall back to JWT claims */
+              }
+            }
+            tenant = mapTenant(
+              tenantProfile ?? { id: pick(claims, "tenant_id"), name: "Mi organización" }
+            );
+          }
 
           const user = mapUser(src, email);
           set({ user, tenant, status: "authenticated" });

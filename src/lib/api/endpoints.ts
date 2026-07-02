@@ -376,7 +376,10 @@ export interface GroupMembersRequest { user_ids: string[]; }
 export interface GroupAgentsRequest { agent_ids: string[]; }
 
 export const groupsApi = {
-  list: () => api.get<Group[]>("/groups"),
+  list: (page = 1, page_size = 100) =>
+    api
+      .get<Group[] | { items: Group[]; total: number }>("/groups", { page, page_size })
+      .then((r) => (Array.isArray(r) ? r : (r as { items: Group[] }).items ?? [])),
   create: (body: GroupCreate) => api.post<unknown>("/groups", body),
   get: (id: string) => api.get<unknown>(`/groups/${id}`),
   update: (id: string, body: GroupUpdate) => api.put<unknown>(`/groups/${id}`, body),
@@ -508,12 +511,61 @@ export interface MessageRequest {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const analyticsApi = {
-  /** GET /api/v1/analytics/dashboard?period=7|30|90 */
-  dashboard: (period: 7 | 30 | 90 = 30) =>
-    api.get<DashboardSummary>("/analytics/dashboard", { period }),
-  /** GET /api/v1/analytics/export */
-  export: (params?: Record<string, string | number | undefined>) =>
-    api.get<unknown>("/analytics/export", params),
+  /**
+   * GET /api/v1/analytics/dashboard?days=7|30|90[&tenant_id=uuid]
+   * The backend Pydantic model uses `days` (integer) as the query param name.
+   * tenant_id is required when called by a super admin scoped to a tenant.
+   */
+  dashboard: (period: 7 | 30 | 90 = 30, tenant_id?: string | null) =>
+    api.get<DashboardSummary>("/analytics/dashboard", {
+      days: period,
+      ...(tenant_id ? { tenant_id } : {}),
+    }),
+
+  /**
+   * GET /api/v1/analytics/export?days=&format=csv|xlsx[&tenant_id=uuid]
+   * Returns a file blob — callers must use a raw fetch to trigger a download.
+   */
+  exportUrl: (period: 7 | 30 | 90 = 30, format: "csv" | "xlsx" = "csv", tenant_id?: string | null): string => {
+    const params = new URLSearchParams({ days: String(period), format });
+    if (tenant_id) params.set("tenant_id", tenant_id);
+    return `/api/v1/analytics/export?${params.toString()}`;
+  },
+
+  /**
+   * Trigger a file download for the analytics export.
+   * Uses a raw fetch so the Authorization header can be set and the blob
+   * can be saved via a temporary <a> element.
+   */
+  export: async (
+    period: 7 | 30 | 90 = 30,
+    format: "csv" | "xlsx" = "csv",
+    tenant_id?: string | null
+  ): Promise<void> => {
+    const params = new URLSearchParams({ days: String(period), format });
+    if (tenant_id) params.set("tenant_id", tenant_id);
+    const token = getAccessToken() ?? localStorage.getItem("ialestra.token");
+    const res = await fetch(`${apiUrl("/analytics/export")}?${params.toString()}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: "omit",
+    });
+    if (!res.ok) {
+      // Try to extract a meaningful error message from the response body
+      let msg = `Export failed: ${res.status}`;
+      try { const j = await res.json(); msg = j?.detail ?? j?.message ?? msg; } catch { /* ignore */ }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const ext = format === "xlsx" ? "xlsx" : "csv";
+    const filename = `analytics-${period}d.${ext}`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 100);
+  },
 };
 
 // Keep legacy alias so existing callers don't break.
@@ -732,14 +784,34 @@ export const uploadsApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface PlatformConfigUpdateRequest { value: unknown; }
-export interface PlatformConfigResponse { key: string; value: unknown; description: string | null; }
+
+/** Matches the backend PlatformConfigOut schema exactly. */
+export interface PlatformConfigResponse {
+  id: string;
+  key: string;
+  value: unknown;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Frontend-only: not returned by the backend, used for mock data only. */
+  description?: string | null;
+}
+
+/** Backend list envelope: { items: [...], total: N } */
+export interface PlatformConfigListEnvelope {
+  items: PlatformConfigResponse[];
+  total: number;
+}
 
 export const platformConfigApi = {
-  /** GET /api/v1/platform-config */
-  list: () => api.get<PlatformConfigResponse[]>("/platform-config"),
+  /**
+   * GET /api/v1/platform-config
+   * Returns { items: PlatformConfigResponse[], total: number }
+   */
+  list: () => api.get<PlatformConfigListEnvelope>("/platform-config"),
   /** GET /api/v1/platform-config/{key} */
   get: (key: string) => api.get<PlatformConfigResponse>(`/platform-config/${key}`),
-  /** PUT /api/v1/platform-config/{key} */
+  /** PUT /api/v1/platform-config/{key} — body: { value: string } */
   upsert: (key: string, value: unknown) =>
     api.put<PlatformConfigResponse>(`/platform-config/${key}`, { value } satisfies PlatformConfigUpdateRequest),
 };

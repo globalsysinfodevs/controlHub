@@ -1,22 +1,21 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Building2, Copy, Cpu, Eye, KeyRound, Plus, Save, ShieldCheck, Sparkles, Terminal } from "lucide-react";
+import { Bell, Building2, Copy, Cpu, Eye, KeyRound, Plus, Save, Sparkles, Terminal } from "lucide-react";
 import { Toggle } from "@/components/ui/Toggle";
 import { toast } from "@/components/ui/Toast";
 import { isMock } from "@/lib/api/client";
 import { modelsApi, tenantApi, type LLMModel } from "@/lib/api/endpoints";
+import { useAuth, isSuperAdmin } from "@/store/auth";
 import { EquipoTab } from "./EquipoTab";
 import { PlanTab, SeguridadTab } from "./BillingSecurityTabs";
 
-// Per architecture §22 the platform uses a single LLM provider (IAlestra AI
-// API), so there is no per-tenant "Proveedores de IA" configuration. Models are
-// managed by the Super Admin under the Modelos tab.
-const TABS = [
-  { key: "general", label: "General" },
-  { key: "modelos", label: "Modelos" },
-  { key: "equipo", label: "Equipo" },
-  { key: "plan", label: "Plan & Billing" },
-  { key: "seguridad", label: "Seguridad" },
+// All tabs — filtered per role below.
+const ALL_TABS = [
+  { key: "general",   label: "General",       superAdminOnly: false },
+  { key: "modelos",   label: "Modelos",        superAdminOnly: true  },
+  { key: "equipo",    label: "Equipo",         superAdminOnly: false },
+  { key: "plan",      label: "Plan & Billing", superAdminOnly: false },
+  { key: "seguridad", label: "Seguridad",      superAdminOnly: false },
 ];
 
 const FIELD = "w-full rounded-xl border border-g-mid bg-g-light px-4 py-2.5 text-sm text-primary transition-colors focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/20";
@@ -31,6 +30,11 @@ const DEFAULT_PROFILE: Profile = { name: "Acme Corp", rfc: "ACM-010101-AB1", bil
 const DEFAULT_NOTIFS = { token_alerts_enabled: true, weekly_summary_email_enabled: true, new_agent_notifications_enabled: true, agent_error_alerts_enabled: false };
 
 export function ConfigPage() {
+  const user = useAuth((s) => s.user);
+  const superAdmin = isSuperAdmin(user?.role);
+  // Only show tabs the current role is allowed to see.
+  const TABS = ALL_TABS.filter((t) => !t.superAdminOnly || superAdmin);
+
   const [tab, setTab] = useState("general");
   const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE);
   const [notifs, setNotifs] = useState(DEFAULT_NOTIFS);

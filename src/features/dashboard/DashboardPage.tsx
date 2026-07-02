@@ -35,10 +35,34 @@ const RANGES = [
 
 export function DashboardPage() {
   const [range, setRange] = useState<7 | 30 | 90>(30);
-  const { data, isLoading } = useQuery({
+  const { data: raw, isLoading, isError } = useQuery({
     queryKey: ["dashboard", range],
     queryFn: () => dashboardApi.summary(range),
+    retry: 1,
   });
+
+  // Normalize: guard every field against undefined so the render never crashes
+  // even when the backend returns a partial payload or a stale cache is used.
+  const data = raw
+    ? {
+        tokens_used:           raw.tokens_used           ?? 0,
+        tokens_limit:          raw.tokens_limit          ?? 1,
+        tokens_delta_pct:      raw.tokens_delta_pct      ?? 0,
+        invocations_today:     raw.invocations_today     ?? 0,
+        invocations_delta_pct: raw.invocations_delta_pct ?? 0,
+        est_cost_mtd:          raw.est_cost_mtd          ?? 0,
+        cost_delta_pct:        raw.cost_delta_pct        ?? 0,
+        active_users:          raw.active_users          ?? 0,
+        active_agents:         raw.active_agents         ?? 0,
+        total_agents:          raw.total_agents          ?? 0,
+        avg_latency_ms:        raw.avg_latency_ms        ?? 0,
+        success_rate:          raw.success_rate          ?? 0,
+        open_security_alerts:  raw.open_security_alerts  ?? 0,
+        series:                raw.series                ?? [],
+        top_agents:            raw.top_agents            ?? [],
+        model_split:           raw.model_split           ?? [],
+      }
+    : null;
 
   const spark = data?.series.map((p) => p.tokens) ?? [];
 

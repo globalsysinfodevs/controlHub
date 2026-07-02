@@ -1,13 +1,14 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Building2, Gauge, Layers, Users } from "lucide-react";
+import { Building2, Gauge, Layers, Settings2, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SUB_TABS: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
-  { to: "/platform", label: "Resumen", icon: Gauge, end: true },
-  { to: "/platform/tenants", label: "Inquilinos", icon: Building2 },
-  { to: "/platform/users", label: "Usuarios", icon: Users },
-  { to: "/platform/industries", label: "Industrias", icon: Layers },
+  { to: "/platform",            label: "Resumen",       icon: Gauge,     end: true },
+  { to: "/platform/tenants",    label: "Inquilinos",    icon: Building2           },
+  { to: "/platform/users",      label: "Usuarios",      icon: Users               },
+  { to: "/platform/industries", label: "Industrias",    icon: Layers              },
+  { to: "/platform/config",     label: "Configuración", icon: Settings2           },
 ];
 
 /** Shared shell for the super-admin platform console: a secondary tab bar + page outlet. */

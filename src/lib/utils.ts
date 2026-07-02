@@ -27,7 +27,8 @@ export function formatCurrency(n: number): string {
   }).format(n);
 }
 
-export function formatPercent(n: number, digits = 0): string {
+export function formatPercent(n: number | null | undefined, digits = 0): string {
+  if (n == null || !isFinite(n)) return "—";
   return `${n.toFixed(digits)}%`;
 }
 

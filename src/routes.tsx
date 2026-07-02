@@ -3,12 +3,14 @@ import type { ReactNode } from "react";
 import { useAuth, homePathForRole, isSuperAdmin } from "@/store/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoginPage } from "@/features/auth/LoginPage";
+import { AcceptInvitationPage } from "@/features/auth/AcceptInvitationPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { PlatformLayout } from "@/features/platform/PlatformLayout";
 import { PlatformOverviewPage } from "@/features/platform/PlatformOverviewPage";
 import { TenantsPage } from "@/features/platform/TenantsPage";
 import { PlatformUsersPage } from "@/features/platform/PlatformUsersPage";
 import { IndustriesPage } from "@/features/platform/IndustriesPage";
+import { PlatformConfigPage } from "@/features/platform/PlatformConfigPage";
 import { MarketplacePage } from "@/features/marketplace/MarketplacePage";
 import { AnalyticsPage } from "@/features/analytics/AnalyticsPage";
 import { ConfigPage } from "@/features/config/ConfigPage";
@@ -49,6 +51,11 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    // Public route — no auth required. Users open this from their invitation email.
+    path: "/invite/accept",
+    element: <AcceptInvitationPage />,
+  },
+  {
     path: "/",
     element: (
       <RequireAuth>
@@ -70,6 +77,7 @@ export const router = createBrowserRouter([
           { path: "tenants", element: <TenantsPage /> },
           { path: "users", element: <PlatformUsersPage /> },
           { path: "industries", element: <IndustriesPage /> },
+          { path: "config", element: <PlatformConfigPage /> },
         ],
       },
       { path: "marketplace", element: <MarketplacePage /> },

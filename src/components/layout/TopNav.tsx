@@ -131,7 +131,7 @@ export function TopNav() {
               <span className="hidden text-left md:block">
                 <span className="block text-xs font-semibold leading-tight text-white">{orgName}</span>
                 <span className="block text-xs capitalize leading-tight text-white/45">
-                  {user?.role?.replace("_", " ") ?? "Admin"}
+                  {user?.role?.replace(/_/g, " ") ?? "Admin"}
                 </span>
               </span>
               <ChevronDown className="hidden h-3.5 w-3.5 text-white/50 md:block" />

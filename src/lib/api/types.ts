@@ -109,7 +109,9 @@ export interface Group {
   name: string;
   description: string;
   agent_ids: string[];
+  user_ids?: string[];
   member_count: number;
+  monthly_token_limit?: number | null;
   created_at: string;
 }
 
