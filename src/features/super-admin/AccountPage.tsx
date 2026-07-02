@@ -10,107 +10,56 @@ import { Badge } from "@/components/ui/Badge";
 import { Input, Label } from "@/components/ui/Field";
 import { toast } from "@/components/ui/Toast";
 import { Panel, LoadingState, ErrorState, errorMessage, statusLabel } from "./parts";
-import { useAuth } from "@/store/auth";
-
-type ProfileShape = {
-  name?: string;
-  email?: string;
-  role?: string;
-  status?: string;
-  last_login?: string | null;
-  created_at?: string;
-  using_default_password?: boolean;
-};
 
 export function AccountPage() {
-  const storeUser = useAuth((s) => s.user);
-  const isSuperAdmin = storeUser?.role === "platform_super_admin";
-
-  // platform_super_admin: fetch the full profile from the API (includes
-  // using_default_password flag and last_login).
-  // All other roles: use the identity already stored in the auth store —
-  // there is no dedicated user-profile endpoint for tenant roles.
-  const { data: apiProfile, isLoading, error, refetch } = useQuery<ProfileShape>({
+  const { data: profile, isLoading, error, refetch } = useQuery({
     queryKey: ["super-admin", "profile"],
-    queryFn: async () => {
-      const raw = await authApi.me();
-      return raw as ProfileShape;
-    },
-    enabled: isSuperAdmin,
+    queryFn: () => authApi.me(),
   });
-
-  const profile: ProfileShape | undefined = isSuperAdmin
-    ? apiProfile
-    : storeUser
-    ? {
-        name: storeUser.name,
-        email: storeUser.email,
-        role: storeUser.role,
-        status: storeUser.status,
-        last_login: storeUser.last_active_at ?? null,
-        created_at: storeUser.created_at,
-        using_default_password: false,
-      }
-    : undefined;
 
   return (
     <div>
       <PageHeader
         eyebrow="Cuenta"
         title="Cuenta y seguridad"
-        description="Tu perfil y contraseña."
+        description="Tu perfil de super admin y contraseña."
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Panel className="p-6">
           <h3 className="mb-4 font-display text-lg font-semibold text-ink">Perfil</h3>
-          {isSuperAdmin && isLoading ? (
+          {isLoading ? (
             <LoadingState />
-          ) : isSuperAdmin && (error || !profile) ? (
+          ) : error || !profile ? (
             <ErrorState error={error} onRetry={() => refetch()} />
-          ) : profile ? (
+          ) : (
             <div className="space-y-1 text-sm">
               <ProfileRow label="Nombre" value={profile.name} />
               <ProfileRow label="Correo" value={profile.email} />
               <ProfileRow
                 label="Rol"
-                value={
-                  <span className="capitalize">{(profile.role ?? "").replace(/_/g, " ")}</span>
-                }
+                value={<span className="capitalize">{profile.role.replace(/_/g, " ")}</span>}
               />
               <ProfileRow
                 label="Estado"
-                value={
-                  <Badge tone={profile.status === "active" ? "ok" : "warn"} dot>
-                    {statusLabel(profile.status ?? "")}
-                  </Badge>
-                }
+                value={<Badge tone={profile.status === "active" ? "ok" : "warn"} dot>{statusLabel(profile.status)}</Badge>}
               />
               <ProfileRow
                 label="Último acceso"
                 value={profile.last_login ? formatDate(profile.last_login) : "—"}
               />
-              <ProfileRow
-                label="Miembro desde"
-                value={profile.created_at ? formatDate(profile.created_at) : "—"}
-              />
+              <ProfileRow label="Miembro desde" value={formatDate(profile.created_at)} />
               {profile.using_default_password && (
                 <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-warn/30 bg-warn/10 p-3 text-sm text-ink">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
-                  <span>
-                    Aún usas la contraseña predeterminada. Cámbiala ahora para proteger la
-                    plataforma.
-                  </span>
+                  <span>Aún usas la contraseña predeterminada. Cámbiala ahora para proteger la plataforma.</span>
                 </div>
               )}
             </div>
-          ) : (
-            <p className="text-sm text-ink-muted">No se pudo cargar el perfil.</p>
           )}
         </Panel>
 
-        {/* Change-password is only available for platform_super_admin */}
-        {isSuperAdmin && <ChangePasswordCard />}
+        <ChangePasswordCard />
       </div>
     </div>
   );

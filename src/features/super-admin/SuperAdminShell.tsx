@@ -5,44 +5,19 @@ import { ChevronDown, LogOut, ShieldCheck } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 import { isMock } from "@/lib/api/client";
-import type { UserRole } from "@/lib/api/types";
 
-interface Tab {
-  to: string;
-  label: string;
-  /** Roles that may see this tab. Undefined = visible to all authenticated users. */
-  roles?: UserRole[];
-}
-
-const ALL_TABS: Tab[] = [
-  { to: "/platform/overview",   label: "Resumen",    roles: ["platform_super_admin"] },
-  { to: "/platform/tenants",    label: "Inquilinos", roles: ["platform_super_admin"] },
-  { to: "/platform/industries", label: "Industrias", roles: ["platform_super_admin"] },
-  { to: "/platform/users",      label: "Usuarios",   roles: ["platform_super_admin"] },
-  { to: "/platform/account",    label: "Cuenta" }, // visible to all roles
+const TABS = [
+  { to: "/platform/overview", label: "Resumen" },
+  { to: "/platform/tenants", label: "Inquilinos" },
+  { to: "/platform/industries", label: "Industrias" },
+  { to: "/platform/users", label: "Usuarios" },
+  { to: "/platform/account", label: "Cuenta" },
 ];
 
 export function SuperAdminShell() {
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const name = user?.name ?? "Super Admin";
-
-  // Wait for zustand/persist to rehydrate from localStorage before filtering
-  // tabs — otherwise user is null on first render and all role-gated tabs vanish.
-  const [hydrated, setHydrated] = useState(false);
-  useState(() => {
-    // useAuth.persist.onFinishHydration fires once the store is ready.
-    const unsub = useAuth.persist.onFinishHydration(() => setHydrated(true));
-    // If already hydrated (e.g. fast reload), mark immediately.
-    if (useAuth.persist.hasHydrated()) setHydrated(true);
-    return unsub;
-  });
-
-  // Only show tabs the current user's role is allowed to access.
-  // While hydrating, show all tabs so the nav doesn't flash empty.
-  const tabs = !hydrated
-    ? ALL_TABS
-    : ALL_TABS.filter((t) => !t.roles || (user?.role && t.roles.includes(user.role)));
 
   return (
     <div className="min-h-screen bg-g-light">
@@ -58,7 +33,7 @@ export function SuperAdminShell() {
               </span>
             </div>
             <div className="hidden items-center gap-6 md:flex">
-              {tabs.map((t) => (
+              {TABS.map((t) => (
                 <NavLink
                   key={t.to}
                   to={t.to}
@@ -119,9 +94,7 @@ export function SuperAdminShell() {
                         <p className="truncate text-sm font-medium text-primary">
                           {user?.email ?? "admin@ialestra.io"}
                         </p>
-                        <p className="text-2xs capitalize text-g-dark">
-                          {user?.role?.replace(/_/g, " ") ?? "super admin de plataforma"}
-                        </p>
+                        <p className="text-2xs text-g-dark">Super admin de plataforma</p>
                       </div>
                       <NavLink
                         to="/platform/account"
@@ -146,7 +119,7 @@ export function SuperAdminShell() {
 
         {/* Mobile tabs */}
         <div className="flex items-center gap-4 overflow-x-auto border-t border-white/10 px-4 py-2 md:hidden">
-          {tabs.map((t) => (
+          {TABS.map((t) => (
             <NavLink
               key={t.to}
               to={t.to}
