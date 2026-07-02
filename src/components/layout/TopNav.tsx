@@ -43,12 +43,12 @@ export function TopNav() {
   // (refresh) and close the stream on logout.
   useEffect(() => {
     if (isMock) return;
-    let es: EventSource | null = null;
+    let conn: { close: () => void } | null = null;
 
-    const onNotification = (e: MessageEvent) => {
+    const onNotification = (data: string) => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       try {
-        const n = normalizeNotification(JSON.parse(e.data));
+        const n = normalizeNotification(JSON.parse(data));
         if (n.title) toast.info(n.title, n.body || undefined);
       } catch {
         /* ignore malformed event payloads */
@@ -56,21 +56,19 @@ export function TopNav() {
     };
 
     const open = () => {
-      es?.close();
-      es = notificationsApi.stream();
-      es.addEventListener("notification", onNotification as EventListener);
+      conn?.close();
+      conn = notificationsApi.stream({ onNotification });
     };
 
     open();
     const unsub = subscribeAccessToken((token) => {
       if (token) open(); // token rotated → reconnect with the fresh token
-      else es?.close(); // logged out → stop streaming
+      else conn?.close(); // logged out → stop streaming
     });
 
     return () => {
       unsub();
-      es?.removeEventListener("notification", onNotification as EventListener);
-      es?.close();
+      conn?.close();
     };
   }, [qc]);
 

@@ -29,6 +29,7 @@ import { mockChatStream } from "./mock/handlers";
 import { agents as mockAgents } from "./mock/db";
 import type {
   Agent,
+  AgentCategory,
   AppNotification,
   AuditEntry,
   Conversation,
@@ -512,6 +513,7 @@ export interface MessageRequest {
 
 export const analyticsApi = {
   /**
+<<<<<<< HEAD
    * GET /api/v1/analytics/dashboard?days=7|30|90[&tenant_id=uuid]
    * The backend Pydantic model uses `days` (integer) as the query param name.
    * tenant_id is required when called by a super admin scoped to a tenant.
@@ -566,11 +568,87 @@ export const analyticsApi = {
     a.click();
     setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 100);
   },
+=======
+   * GET /api/v1/analytics/dashboard?period=7|30|90 — returns the raw backend
+   * payload (kpis / series / cost_by_agent / budget / recent_sessions).
+   * AnalyticsPage consumes this shape directly; DashboardPage uses
+   * dashboardApi.summary() which adapts it to DashboardSummary.
+   */
+  dashboard: (period: 7 | 30 | 90 = 30) =>
+    api.get<Record<string, unknown>>("/analytics/dashboard", { period }),
+  /** GET /api/v1/analytics/export */
+  export: (params?: Record<string, string | number | undefined>) =>
+    api.get<unknown>("/analytics/export", params),
+>>>>>>> de0b3ec618b038f047b10479655685c13bcaacfd
 };
+
+/** Coerce to a finite number, defaulting to 0 (guards against undefined/null/NaN). */
+function num(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+const OK_SESSION_STATUSES = new Set(["success", "completed", "ok"]);
+
+/**
+ * Adapt the backend consumption-dashboard payload into the flat
+ * DashboardSummary shape the tenant DashboardPage renders. Tolerant of both the
+ * live shape (`kpis` / `budget` / `cost_by_agent`) and the legacy flat shape,
+ * and fills fields the backend doesn't provide with safe defaults so no widget
+ * ever receives `undefined`.
+ */
+export function mapDashboard(raw: Record<string, unknown>): DashboardSummary {
+  const r = raw ?? {};
+  const kpis = (r.kpis ?? {}) as Record<string, unknown>;
+  const budget = (r.budget ?? {}) as Record<string, unknown>;
+  const series = Array.isArray(r.series) ? (r.series as Record<string, unknown>[]) : [];
+  const costByAgent = Array.isArray(r.cost_by_agent) ? (r.cost_by_agent as Record<string, unknown>[]) : [];
+  const sessions = Array.isArray(r.recent_sessions) ? (r.recent_sessions as Record<string, unknown>[]) : [];
+
+  const successRate =
+    r.success_rate != null
+      ? num(r.success_rate)
+      : sessions.length
+        ? (sessions.filter((s) => OK_SESSION_STATUSES.has(String(s.status).toLowerCase())).length / sessions.length) * 100
+        : 0;
+
+  const legacyTop = Array.isArray(r.top_agents) ? (r.top_agents as DashboardSummary["top_agents"]) : null;
+
+  return {
+    tokens_used: num(kpis.tokens_total ?? r.tokens_used),
+    tokens_limit: num(budget.limit ?? r.tokens_limit),
+    tokens_delta_pct: num(kpis.tokens_delta_pct ?? r.tokens_delta_pct),
+    active_agents: num(r.active_agents ?? costByAgent.length),
+    total_agents: num(r.total_agents ?? costByAgent.length),
+    invocations_today: num(kpis.total_queries ?? r.invocations_today),
+    invocations_delta_pct: num(kpis.queries_delta_pct ?? r.invocations_delta_pct),
+    active_users: num(r.active_users),
+    est_cost_mtd: num(kpis.cost_estimated ?? r.est_cost_mtd),
+    cost_delta_pct: num(kpis.cost_delta_pct ?? r.cost_delta_pct),
+    avg_latency_ms: num(kpis.avg_latency_ms ?? r.avg_latency_ms),
+    success_rate: successRate,
+    open_security_alerts: num(r.open_security_alerts),
+    series: series.map((p) => ({
+      date: String(p.date ?? ""),
+      tokens: num(p.tokens),
+      cost: num(p.cost),
+      invocations: num(p.invocations ?? p.queries),
+    })),
+    top_agents:
+      legacyTop ??
+      costByAgent.slice(0, 6).map((a) => ({
+        id: String(a.agent_id ?? a.id ?? ""),
+        name: String(a.name ?? "—"),
+        tokens: num(a.tokens),
+        category: "automation" as AgentCategory,
+      })),
+    model_split: Array.isArray(r.model_split) ? (r.model_split as DashboardSummary["model_split"]) : [],
+  };
+}
 
 // Keep legacy alias so existing callers don't break.
 export const dashboardApi = {
-  summary: (range: 7 | 30 | 90 = 30) => analyticsApi.dashboard(range),
+  summary: async (range: 7 | 30 | 90 = 30): Promise<DashboardSummary> =>
+    mapDashboard(await analyticsApi.dashboard(range)),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -654,6 +732,17 @@ export const datasourcesApi = {
 
 export interface MarkReadRequest { notification_ids: string[]; }
 
+/** Handlers for the SSE notification stream. */
+export interface NotificationStreamHandlers {
+  onNotification?: (data: string) => void;
+  onOpen?: () => void;
+  onError?: (err: unknown) => void;
+}
+/** Controller returned by notificationsApi.stream(); call close() to disconnect. */
+export interface NotificationStream {
+  close: () => void;
+}
+
 /** The 19 valid notification kinds (mirrors backend NotificationType). */
 const NOTIFICATION_TYPES: readonly NotificationType[] = [
   "token_warning", "token_limit_reached", "group_token_warning", "user_token_warning",
@@ -717,13 +806,75 @@ export const notificationsApi = {
   readAll: () => api.post<null>("/notifications/mark-all-read"),
   /**
    * GET /api/v1/notifications/stream — SSE real-time stream.
-   * Returns the raw EventSource so the caller can attach listeners.
+   *
+   * Uses fetch() + a streaming reader (not native EventSource) so the JWT can
+   * be sent in the `Authorization: Bearer` header — the backend validates it
+   * via the standard OAuth2 bearer scheme, not a query param. Auto-reconnects
+   * on transient failures; stops on 401 (a token refresh will reopen it) and
+   * on close(). The token is read fresh on every (re)connect.
    */
-  stream: (): EventSource => {
-    const token = getAccessToken() ?? localStorage.getItem("ialestra.token");
-    const url = new URL(apiUrl("/notifications/stream"));
-    if (token) url.searchParams.set("token", token);
-    return new EventSource(url.toString());
+  stream: (handlers: NotificationStreamHandlers): NotificationStream => {
+    const controller = new AbortController();
+    let closed = false;
+
+    async function run() {
+      while (!closed) {
+        try {
+          const token = getAccessToken() ?? localStorage.getItem("ialestra.token");
+          const res = await fetch(apiUrl("/notifications/stream"), {
+            method: "GET",
+            headers: {
+              Accept: "text/event-stream",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            signal: controller.signal,
+            credentials: "omit",
+          });
+          if (res.status === 401) {
+            // Stale/expired token — stop and wait for a refresh to reopen us.
+            handlers.onError?.(new Error("SSE unauthorized"));
+            return;
+          }
+          if (!res.ok || !res.body) throw new Error(`SSE ${res.status}`);
+
+          handlers.onOpen?.();
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          while (!closed) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer = (buffer + decoder.decode(value, { stream: true })).replace(/\r\n/g, "\n");
+            // SSE frames are separated by a blank line.
+            let sep: number;
+            while ((sep = buffer.indexOf("\n\n")) !== -1) {
+              const frame = buffer.slice(0, sep);
+              buffer = buffer.slice(sep + 2);
+              let event = "message";
+              const dataLines: string[] = [];
+              for (const line of frame.split("\n")) {
+                if (line.startsWith("event:")) event = line.slice(6).trim();
+                else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+              }
+              if (event === "notification") handlers.onNotification?.(dataLines.join("\n"));
+            }
+          }
+        } catch (err) {
+          if (closed || controller.signal.aborted) break;
+          handlers.onError?.(err);
+        }
+        // Reconnect after a short delay unless we've been closed.
+        if (!closed) await new Promise((r) => setTimeout(r, 3000));
+      }
+    }
+
+    void run();
+    return {
+      close: () => {
+        closed = true;
+        controller.abort();
+      },
+    };
   },
 };
 
