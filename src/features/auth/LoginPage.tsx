@@ -22,7 +22,7 @@ export function LoginPage() {
     try {
       await login(email, password);
       toast.success("Sesión iniciada", "Bienvenido a iAlestra Agentic Hub");
-      navigate("/platform/overview");
+      navigate("/marketplace");
     } catch {
       /* error en el store */
     }

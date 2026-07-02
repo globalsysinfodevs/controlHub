@@ -123,7 +123,7 @@ export const useAuth = create<AuthState>()(
           );
           if (!profile) {
             try {
-              const me = (await authApi.me()) as unknown as Raw;
+              const me = (await authApi.me()) as Raw;
               profile = pick<Raw>(me, "user", "admin", "profile", "super_admin") ?? me;
             } catch {
               /* profile route optional — fall back to the entered email */

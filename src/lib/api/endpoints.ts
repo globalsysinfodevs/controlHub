@@ -65,27 +65,6 @@ export interface AcceptInvitationRequest {
 }
 export type LoginResponse = Record<string, unknown>;
 
-/** Token pair returned by login/refresh endpoints. */
-export interface TokenPair {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-}
-
-/** GET /auth/super-admin/profile — SuperAdminProfileOut */
-export interface SuperAdminProfile {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  status: string;
-  last_login: string | null;
-  created_at: string;
-  updated_at: string;
-  using_default_password: boolean;
-}
-
 export const authApi = {
   /**
    * Universal login — tries POST /auth/login first (all roles).
@@ -114,7 +93,7 @@ export const authApi = {
     api.post<LoginResponse>("/auth/super-admin/refresh", { refresh_token } satisfies RefreshTokenRequest),
 
   /** GET /api/v1/auth/super-admin/profile */
-  me: () => api.get<SuperAdminProfile>("/auth/super-admin/profile"),
+  me: () => api.get<LoginResponse>("/auth/super-admin/profile"),
 
   /** POST /api/v1/auth/super-admin/change-password */
   changePassword: (body: ChangePasswordRequest) =>
@@ -138,143 +117,53 @@ export const authApi = {
 // Super Admin
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Response shapes (mirror app/modules/super_admin/schemas.py) ───────────────
-
-/** IndustryOut */
-export interface Industry {
-  id: string;
-  name: string;
-  icon: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-/** TenantOut */
-export interface TenantRecord {
-  id: string;
-  name: string;
-  billing_email: string;
-  rfc: string | null;
-  industry_id: string | null;
-  timezone: string;
-  status: string;
-  plan_name: string | null;
-  monthly_token_limit: number | null;
-  monthly_cost: number | null;
-  is_deleted: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-/** TenantDetailOut */
-export interface TenantDetail extends TenantRecord {
-  user_count: number;
-  active_user_count: number;
-}
-
-/** PlatformUserOut */
-export interface PlatformUser {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  status: string;
-  tenant_id: string | null;
-  auth_provider: string;
-  mfa_enabled: boolean;
-  last_login: string | null;
-  created_at: string;
-  updated_at: string;
-  is_deleted: boolean;
-}
-
-/** InvitationOut */
-export interface TenantInvitation {
-  id: string;
-  tenant_id: string;
-  user_id: string | null;
-  email: string;
-  name: string;
-  role: string;
-  expires_at: string;
-  created_at: string;
-}
-
-/** PlatformStatsOut */
-export interface PlatformStats {
-  total_tenants: number;
-  active_tenants: number;
-  total_users: number;
-  active_users: number;
-  total_industries: number;
-}
-
-// ── Request shapes ────────────────────────────────────────────────────────────
-
-export interface IndustryCreate { name: string; icon?: string | null; }
-export interface IndustryUpdate { name?: string; icon?: string | null; }
+export interface IndustryCreate { name: string; description?: string | null; }
+export interface IndustryUpdate { name?: string; description?: string | null; }
 
 export interface TenantCreate {
   name: string;
-  billing_email: string;
   rfc?: string | null;
+  billing_email: string;
   industry_id?: string | null;
   timezone?: string;
   plan_name?: string | null;
-  monthly_token_limit?: number | null;
-  monthly_cost?: number | null;
 }
 export interface TenantUpdate {
   name?: string;
-  billing_email?: string;
   rfc?: string | null;
+  billing_email?: string;
   industry_id?: string | null;
   timezone?: string;
   plan_name?: string | null;
-  monthly_token_limit?: number | null;
-  monthly_cost?: number | null;
 }
 export interface InviteTenantAdminRequest { name: string; email: string; }
 export interface PlatformUserStatusUpdate { status: "active" | "inactive"; }
 
 export const superAdminApi = {
   // Industries
-  /** GET /super-admin/industries — paginated */
-  listIndustries: (page = 1, page_size = 100) =>
-    api.get<Industry[]>("/super-admin/industries", { page, page_size }),
-  createIndustry: (body: IndustryCreate) => api.post<Industry>("/super-admin/industries", body),
-  updateIndustry: (id: string, body: IndustryUpdate) => api.patch<Industry>(`/super-admin/industries/${id}`, body),
+  listIndustries: () => api.get<{ id: string; name: string; description: string | null }[]>("/super-admin/industries"),
+  createIndustry: (body: IndustryCreate) => api.post<{ id: string; name: string }>("/super-admin/industries", body),
+  updateIndustry: (id: string, body: IndustryUpdate) => api.patch<{ id: string; name: string }>(`/super-admin/industries/${id}`, body),
   deleteIndustry: (id: string) => api.delete<null>(`/super-admin/industries/${id}`),
 
   // Tenants
-  listTenants: (page = 1, page_size = 20, include_deleted = false) =>
-    api.get<TenantRecord[]>("/super-admin/tenants", {
-      page,
-      page_size,
-      include_deleted: include_deleted ? "true" : undefined,
-    }),
-  createTenant: (body: TenantCreate) => api.post<TenantRecord>("/super-admin/tenants", body),
-  getTenant: (id: string) => api.get<TenantDetail>(`/super-admin/tenants/${id}`),
-  updateTenant: (id: string, body: TenantUpdate) => api.patch<TenantRecord>(`/super-admin/tenants/${id}`, body),
+  listTenants: (page = 1, page_size = 20) => api.get<unknown[]>("/super-admin/tenants", { page, page_size }),
+  createTenant: (body: TenantCreate) => api.post<unknown>("/super-admin/tenants", body),
+  getTenant: (id: string) => api.get<unknown>(`/super-admin/tenants/${id}`),
+  updateTenant: (id: string, body: TenantUpdate) => api.patch<unknown>(`/super-admin/tenants/${id}`, body),
   deleteTenant: (id: string) => api.delete<null>(`/super-admin/tenants/${id}`),
-  restoreTenant: (id: string) => api.post<TenantRecord>(`/super-admin/tenants/${id}/restore`),
+  restoreTenant: (id: string) => api.post<unknown>(`/super-admin/tenants/${id}/restore`),
   inviteTenantAdmin: (tenantId: string, body: InviteTenantAdminRequest) =>
-    api.post<TenantInvitation>(`/super-admin/tenants/${tenantId}/invite-admin`, body),
+    api.post<unknown>(`/super-admin/tenants/${tenantId}/invite-admin`, body),
 
   // Platform users
-  listUsers: (page = 1, page_size = 20, tenant_id?: string, include_deleted = false) =>
-    api.get<PlatformUser[]>("/super-admin/users", {
-      page,
-      page_size,
-      tenant_id,
-      include_deleted: include_deleted ? "true" : undefined,
-    }),
-  getUser: (id: string) => api.get<PlatformUser>(`/super-admin/users/${id}`),
+  listUsers: (page = 1, page_size = 20) => api.get<unknown[]>("/super-admin/users", { page, page_size }),
+  getUser: (id: string) => api.get<unknown>(`/super-admin/users/${id}`),
   updateUserStatus: (id: string, body: PlatformUserStatusUpdate) =>
-    api.patch<PlatformUser>(`/super-admin/users/${id}/status`, body),
+    api.patch<unknown>(`/super-admin/users/${id}/status`, body),
 
   // Stats
-  stats: () => api.get<PlatformStats>("/super-admin/stats"),
+  stats: () => api.get<unknown>("/super-admin/stats"),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
