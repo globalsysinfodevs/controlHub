@@ -4,6 +4,7 @@ import { useAuth, homePathForRole, isSuperAdmin } from "@/store/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { AcceptInvitationPage } from "@/features/auth/AcceptInvitationPage";
+import { ActivateAccountPage } from "@/features/auth/ActivateAccountPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { PlatformLayout } from "@/features/platform/PlatformLayout";
 import { PlatformOverviewPage } from "@/features/platform/PlatformOverviewPage";
@@ -54,6 +55,12 @@ export const router = createBrowserRouter([
     // Public route — no auth required. Users open this from their invitation email.
     path: "/invite/accept",
     element: <AcceptInvitationPage />,
+  },
+  {
+    // Tenant admin activation link — sent by super admin via email.
+    // URL format: /activate-account?token=<token>
+    path: "/activate-account",
+    element: <ActivateAccountPage />,
   },
   {
     path: "/",
