@@ -1,8 +1,12 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ShieldAlert, ShieldCheck } from "lucide-react";
+import { Building2, ChevronDown, ShieldAlert, ShieldCheck } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import type { SecurityAlert } from "@/lib/api/types";
-import { securityApi } from "@/lib/api/endpoints";
+import { securityApi, superAdminApi } from "@/lib/api/endpoints";
+import { isMock } from "@/lib/api/client";
 import { timeAgo } from "@/lib/utils";
+import { useAuth, isSuperAdmin } from "@/store/auth";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Sigil } from "@/components/ui/Sigil";
@@ -21,9 +25,34 @@ const STATUS_TONE: Record<SecurityAlert["status"], "danger" | "telemetry" | "neu
 };
 
 export function SecurityPage() {
+  const user = useAuth((s) => s.user);
+  const superAdmin = isSuperAdmin(user?.role);
+
+  // Super admin tenant picker
+  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
+  const [tenantPickerOpen, setTenantPickerOpen] = useState(false);
+
+  // Fetch tenant list for super admin picker
+  const { data: tenantList = [] } = useQuery({
+    queryKey: ["super-admin", "tenants", "security-picker"],
+    queryFn: async () => {
+      const res = await superAdminApi.listTenants(1, 100) as unknown;
+      if (Array.isArray(res)) return res as { id: string; name: string }[];
+      if (res && typeof res === "object" && "items" in (res as object)) {
+        return (res as { items: { id: string; name: string }[] }).items ?? [];
+      }
+      return [];
+    },
+    enabled: superAdmin && !isMock,
+    staleTime: 60_000,
+  });
+
+  const selectedTenant = tenantList.find((t) => t.id === selectedTenantId) ?? null;
+  const tenantId = superAdmin ? selectedTenantId : null;
+
   const { data: alerts, isLoading } = useQuery({
-    queryKey: ["security", "alerts"],
-    queryFn: () => securityApi.alerts(),
+    queryKey: ["security", "alerts", tenantId],
+    queryFn: () => securityApi.alerts(1, 20, tenantId),
   });
 
   const open = alerts?.filter((a) => a.status === "open").length ?? 0;
@@ -35,6 +64,67 @@ export function SecurityPage() {
         eyebrow="Govern"
         title="Security Panel"
         description="PII detected in agent executions, surfaced by the async scan worker for review."
+        actions={
+          superAdmin && !isMock ? (
+            <div className="relative">
+              <button
+                onClick={() => setTenantPickerOpen((v) => !v)}
+                className={
+                  "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-all " +
+                  (selectedTenant
+                    ? "border-brand-500/50 bg-brand-500/5 text-ink"
+                    : "border-line text-ink-muted hover:text-ink")
+                }
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                {selectedTenant ? selectedTenant.name : "Todos los tenants"}
+                <ChevronDown className="h-3 w-3 opacity-70" />
+              </button>
+              <AnimatePresence>
+                {tenantPickerOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setTenantPickerOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                      transition={{ duration: 0.12 }}
+                      className="panel absolute right-0 top-10 z-50 max-h-64 w-56 overflow-y-auto p-1"
+                    >
+                      {/* "All tenants" option */}
+                      <button
+                        onClick={() => { setSelectedTenantId(null); setTenantPickerOpen(false); }}
+                        className={
+                          "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors hover:bg-ink/[0.04] " +
+                          (!selectedTenantId ? "bg-brand-500/10 font-semibold text-brand-700" : "text-ink")
+                        }
+                      >
+                        <Building2 className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                        Todos los tenants
+                      </button>
+                      {tenantList.length === 0 && (
+                        <p className="px-3 py-2 text-xs text-ink-muted">Sin tenants disponibles</p>
+                      )}
+                      {tenantList.map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => { setSelectedTenantId(t.id); setTenantPickerOpen(false); }}
+                          className={
+                            "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors hover:bg-ink/[0.04] " +
+                            (selectedTenantId === t.id ? "bg-brand-500/10 font-semibold text-brand-700" : "text-ink")
+                          }
+                        >
+                          <Building2 className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                          {t.name}
+                        </button>
+                      ))}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          ) : undefined
+        }
       />
 
       <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -64,7 +154,7 @@ export function SecurityPage() {
                       </span>
                     ))}
                   </div>
-                  <p className="mt-1.5 truncate font-mono text-xs text-ink-faint">“{a.excerpt}”</p>
+                  <p className="mt-1.5 truncate font-mono text-xs text-ink-faint">"{a.excerpt}"</p>
                   <p className="mt-1 text-2xs text-ink-faint">
                     {a.user_name} · {a.agent_name} · {timeAgo(a.detected_at)}
                   </p>

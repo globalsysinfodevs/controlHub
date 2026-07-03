@@ -643,11 +643,17 @@ export const dashboardApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const auditApi = {
-  /** GET /api/v1/audit-logs?status&page&page_size */
-  list: (status?: string, page = 1, page_size = 20) =>
-    api.get<AuditEntry[]>("/audit-logs", { status, page, page_size }),
-  /** GET /api/v1/audit-logs/export */
-  export: () => api.get<unknown>("/audit-logs/export"),
+  /** GET /api/v1/audit-logs?status&page&page_size[&tenant_id=uuid] */
+  list: (status?: string, page = 1, page_size = 20, tenant_id?: string | null) =>
+    api.get<AuditEntry[]>("/audit-logs", {
+      status,
+      page,
+      page_size,
+      ...(tenant_id ? { tenant_id } : {}),
+    }),
+  /** GET /api/v1/audit-logs/export[?tenant_id=uuid] */
+  export: (tenant_id?: string | null) =>
+    api.get<unknown>("/audit-logs/export", tenant_id ? { tenant_id } : undefined),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -655,11 +661,16 @@ export const auditApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const securityApi = {
-  /** GET /api/v1/security/alerts?page&page_size */
-  alerts: (page = 1, page_size = 20) =>
-    api.get<SecurityAlert[]>("/security/alerts", { page, page_size }),
-  /** GET /api/v1/security/alerts/export */
-  export: () => api.get<unknown>("/security/alerts/export"),
+  /** GET /api/v1/security/alerts?page&page_size[&tenant_id=uuid] */
+  alerts: (page = 1, page_size = 20, tenant_id?: string | null) =>
+    api.get<SecurityAlert[]>("/security/alerts", {
+      page,
+      page_size,
+      ...(tenant_id ? { tenant_id } : {}),
+    }),
+  /** GET /api/v1/security/alerts/export[?tenant_id=uuid] */
+  export: (tenant_id?: string | null) =>
+    api.get<unknown>("/security/alerts/export", tenant_id ? { tenant_id } : undefined),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
