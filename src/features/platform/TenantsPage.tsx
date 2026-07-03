@@ -152,7 +152,7 @@ export function TenantsPage() {
     <div>
       <PageHeader
         eyebrow="Plataforma"
-        title="Inquilinos"
+        title="Tenants"
         description="Crea y administra las organizaciones (inquilinos) de la plataforma."
         actions={
           <div className="flex items-center gap-3">
@@ -169,7 +169,7 @@ export function TenantsPage() {
               Incluir eliminados
             </label>
             <Button leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
-              Nuevo inquilino
+              Nuevo Tenant
             </Button>
           </div>
         }
@@ -192,7 +192,7 @@ export function TenantsPage() {
             <table className="w-full min-w-[860px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-2xs uppercase tracking-wider text-ink-faint">
-                  <th className="px-5 py-3 font-medium">Inquilino</th>
+                  <th className="px-5 py-3 font-medium">Tenant</th>
                   <th className="px-5 py-3 font-medium">Industria</th>
                   <th className="px-5 py-3 font-medium">Plan</th>
                   <th className="px-5 py-3 font-medium">Tokens / mes</th>
