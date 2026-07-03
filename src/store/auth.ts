@@ -10,6 +10,8 @@ interface AuthState {
   status: "idle" | "authenticating" | "authenticated";
   error: string | null;
   login: (email: string, password: string) => Promise<User>;
+  /** Hydrate auth state directly from an acceptInvitation / activate-account response. */
+  activateFromToken: (data: Raw) => Promise<User>;
   logout: () => Promise<void>;
   clearError: () => void;
 }
@@ -208,6 +210,50 @@ export const useAuth = create<AuthState>()(
           });
           throw err;
         }
+      },
+
+      async activateFromToken(data: Raw) {
+        const nested = (pick<Raw>(data, "tokens", "data", "auth") ?? data) as Raw;
+        const access =
+          pick<string>(data, "access_token", "accessToken", "access", "token", "jwt") ??
+          pick<string>(nested, "access_token", "accessToken", "access", "token", "jwt");
+        const refresh =
+          pick<string>(data, "refresh_token", "refreshToken", "refresh") ??
+          pick<string>(nested, "refresh_token", "refreshToken", "refresh");
+
+        if (!access) throw new Error("The server returned no access token after activation.");
+
+        setAccessToken(access);
+        if (refresh) setRefreshToken(refresh);
+
+        const claims = decodeJwt(access) ?? {};
+        const role = pick<string>(claims, "role");
+        let profile = pick<Raw>(data, "user", "admin", "profile", "account");
+        const src: Raw = { ...claims, ...(profile ?? {}) };
+
+        const rawTenant = pick<Raw>(data, "tenant", "organization", "company");
+        let tenant: Tenant;
+        if (isSuperAdmin(role)) {
+          tenant = rawTenant ? mapTenant(rawTenant) : PLATFORM_TENANT;
+        } else {
+          let tenantProfile: Raw | undefined = rawTenant ?? undefined;
+          if (!tenantProfile || !pick<string>(tenantProfile, "name")) {
+            try {
+              const profileRes = await tenantApi.profile();
+              tenantProfile = profileRes as unknown as Raw;
+            } catch {
+              /* optional */
+            }
+          }
+          tenant = mapTenant(
+            tenantProfile ?? { id: pick(claims, "tenant_id"), name: "Mi organización" }
+          );
+        }
+
+        const email = pick<string>(src, "email", "username") ?? "";
+        const user = mapUser(src, email);
+        set({ user, tenant, status: "authenticated" });
+        return user;
       },
 
       async logout() {
