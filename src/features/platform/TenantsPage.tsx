@@ -92,7 +92,7 @@ export function TenantsPage() {
         ? superAdminApi.updateTenant(editing.id, toBody(form))
         : superAdminApi.createTenant(toBody(form)),
     onSuccess: () => {
-      toast.success(editing ? "Inquilino actualizado" : "Inquilino creado", form.name);
+      toast.success(editing ? "Tenant actualizado" : "Tenant creado", form.name);
       setFormOpen(false);
       refresh();
     },
@@ -103,7 +103,7 @@ export function TenantsPage() {
     mutationFn: (v: { t: PlatformTenant; restore: boolean }) =>
       v.restore ? superAdminApi.restoreTenant(v.t.id) : superAdminApi.deleteTenant(v.t.id),
     onSuccess: (_r, v) => {
-      toast.success(v.restore ? "Inquilino restaurado" : "Inquilino desactivado", v.t.name);
+      toast.success(v.restore ? "Tenant restaurado" : "Tenant desactivado", v.t.name);
       refresh();
     },
     onError: (e) => toast.error("No se pudo actualizar", (e as Error).message),
@@ -142,7 +142,7 @@ export function TenantsPage() {
     setFormOpen(true);
   }
   function onToggleActive(t: PlatformTenant) {
-    if (!t.is_deleted && !window.confirm(`¿Desactivar el inquilino "${t.name}"?`)) return;
+    if (!t.is_deleted && !window.confirm(`¿Desactivar el tenant "${t.name}"?`)) return;
     setActive.mutate({ t, restore: t.is_deleted });
   }
 
@@ -153,7 +153,7 @@ export function TenantsPage() {
       <PageHeader
         eyebrow="Plataforma"
         title="Tenants"
-        description="Crea y administra las organizaciones (inquilinos) de la plataforma."
+        description="Crea y administra las organizaciones (tenants) de la plataforma."
         actions={
           <div className="flex items-center gap-3">
             <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
@@ -176,15 +176,15 @@ export function TenantsPage() {
       />
 
       {isLoading ? (
-        <CenteredLoader label="Cargando inquilinos…" />
+        <CenteredLoader label="Cargando tenants…" />
       ) : isError ? (
-        <EmptyState title="No se pudieron cargar los inquilinos" description={(error as Error)?.message} />
+        <EmptyState title="No se pudieron cargar los tenants" description={(error as Error)?.message} />
       ) : !data || data.length === 0 ? (
         <EmptyState
           icon={<Building2 className="h-6 w-6" />}
-          title="Sin inquilinos"
-          description="Crea el primer inquilino para empezar a incorporar organizaciones."
-          action={<Button leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>Nuevo inquilino</Button>}
+          title="Sin tenants"
+          description="Crea el primer tenant para empezar a incorporar organizaciones."
+          action={<Button leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>Nuevo tenant</Button>}
         />
       ) : (
         <>
@@ -273,13 +273,13 @@ export function TenantsPage() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         size="lg"
-        title={editing ? "Editar inquilino" : "Nuevo inquilino"}
+        title={editing ? "Editar tenant" : "Nuevo tenant"}
         description="Los campos de facturación e industria son opcionales salvo el nombre y el correo."
         footer={
           <>
             <Button variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
             <Button onClick={() => canSave && save.mutate()} loading={save.isPending} disabled={!canSave}>
-              {editing ? "Guardar cambios" : "Crear inquilino"}
+              {editing ? "Guardar cambios" : "Crear tenant"}
             </Button>
           </>
         }

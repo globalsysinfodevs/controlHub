@@ -29,7 +29,7 @@ export function PlatformOverviewPage() {
       <PageHeader
         eyebrow="Plataforma"
         title="Resumen de la plataforma"
-        description="Métricas globales de inquilinos, usuarios e industrias en toda la plataforma."
+        description="Métricas globales de tenants, usuarios e industrias en toda la plataforma."
         actions={
           <button
             onClick={() => refetch()}
@@ -53,13 +53,13 @@ export function PlatformOverviewPage() {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
           <StatCard
             icon={Building2}
-            label="Inquilinos totales"
+            label="Tenants totales"
             value={formatInt(data.total_tenants)}
             accent="brand"
           />
           <StatCard
             icon={CheckCircle2}
-            label={`Inquilinos activos · ${formatPercent(share(data.active_tenants, data.total_tenants))}`}
+            label={`Tenants activos · ${formatPercent(share(data.active_tenants, data.total_tenants))}`}
             value={formatInt(data.active_tenants)}
             accent="ok"
           />

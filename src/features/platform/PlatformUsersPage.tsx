@@ -59,7 +59,7 @@ export function PlatformUsersPage() {
       <PageHeader
         eyebrow="Plataforma"
         title="Usuarios"
-        description="Todos los usuarios de la plataforma, en todos los inquilinos."
+        description="Todos los usuarios de la plataforma, en todos los tenants."
         actions={
           <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
             <input

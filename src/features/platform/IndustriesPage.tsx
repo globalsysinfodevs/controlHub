@@ -79,7 +79,7 @@ export function IndustriesPage() {
       <PageHeader
         eyebrow="Plataforma"
         title="Industrias"
-        description="Catálogo de industrias que se asignan a los inquilinos."
+        description="Catálogo de industrias que se asignan a los tenants."
         actions={
           <Button leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
             Nueva industria
@@ -95,7 +95,7 @@ export function IndustriesPage() {
         <EmptyState
           icon={<Layers className="h-6 w-6" />}
           title="Sin industrias"
-          description="Crea la primera industria para poder clasificar a los inquilinos."
+          description="Crea la primera industria para poder clasificar a los tenants."
           action={
             <Button leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
               Nueva industria
