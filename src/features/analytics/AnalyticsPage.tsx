@@ -89,6 +89,7 @@ export function AnalyticsPage() {
   const [exporting, setExporting] = useState(false);
   // Super admin tenant picker
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
+  const [selectedTenantName, setSelectedTenantName] = useState<string | null>(null);
   const [tenantPickerOpen, setTenantPickerOpen] = useState(false);
 
   const days = PERIODS.find((p) => p.key === period)?.days ?? 30;
@@ -109,7 +110,10 @@ export function AnalyticsPage() {
     staleTime: 60_000,
   });
 
-  const selectedTenant = tenantList.find((t) => t.id === selectedTenantId) ?? null;
+  // Prefer the stored name (set on click); fall back to list lookup in case of re-render
+  const selectedTenant = selectedTenantId
+    ? (tenantList.find((t) => t.id === selectedTenantId) ?? (selectedTenantName ? { id: selectedTenantId, name: selectedTenantName } : null))
+    : null;
 
   // Super admins must pass tenant_id — the backend requires it.
   // Tenant users never pass tenant_id; the backend infers it from the JWT.
@@ -273,7 +277,7 @@ export function AnalyticsPage() {
                       {tenantList.map((t) => (
                         <button
                           key={t.id}
-                          onClick={() => { setSelectedTenantId(t.id); setTenantPickerOpen(false); }}
+                           onClick={() => { setSelectedTenantId(t.id); setSelectedTenantName(t.name); setTenantPickerOpen(false); }}
                           className={
                             "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors hover:bg-g-light " +
                             (selectedTenantId === t.id ? "bg-secondary/10 font-semibold text-secondary" : "text-primary")
