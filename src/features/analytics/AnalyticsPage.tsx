@@ -251,13 +251,13 @@ export function AnalyticsPage() {
                 onClick={() => setTenantPickerOpen((v) => !v)}
                 className={
                   "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-all " +
-                  (selectedTenant
+                  (selectedTenantName
                     ? "border-secondary bg-secondary/5 text-primary"
                     : "border-warn bg-warn/5 text-warn")
                 }
               >
                 <Building2 className="h-3.5 w-3.5" />
-                {selectedTenant ? selectedTenant.name : "Seleccionar tenant"}
+                {selectedTenantName ?? "Seleccionar tenant"}
                 <ChevronDown className="h-3 w-3 opacity-70" />
               </button>
               <AnimatePresence>
