@@ -202,17 +202,23 @@ export function PlatformConfigPage() {
                   disabled={saving[entry.key]}
                   className="flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-60"
                 >
-                  {/* Stable span wrapper prevents browser-extension DOM injection
-                      from causing React's insertBefore reconciliation to crash
-                      when the icon swaps between states. */}
-                  <span className="flex items-center gap-1.5">
+                  {/*
+                    Stable icon container: fixes the browser-extension
+                    insertBefore crash (e.g. Adobe Acrobat injects nodes into
+                    <span> elements; when React swaps icons it calls
+                    insertBefore on a node the extension already moved).
+                    Keeping the icon in its own fixed-size span means React
+                    only ever replaces content *inside* that span, never
+                    doing a sibling insertBefore on the outer element.
+                  */}
+                  <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
                     {saving[entry.key] ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <Save className="h-3.5 w-3.5" />
                     )}
-                    Guardar
                   </span>
+                  Guardar
                 </button>
               </div>
 
@@ -268,14 +274,14 @@ export function PlatformConfigPage() {
                 disabled={adding || !newKey.trim()}
                 className="flex shrink-0 items-center gap-1.5 rounded-xl bg-ok px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-60"
               >
-                <span className="flex items-center gap-1.5">
+                <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
                   {adding ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <Plus className="h-3.5 w-3.5" />
                   )}
-                  Añadir
                 </span>
+                Añadir
               </button>
             </div>
             <p className="mt-2 text-2xs text-ink-faint">
