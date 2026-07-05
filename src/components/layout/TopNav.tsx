@@ -34,6 +34,7 @@ export function TopNav() {
   const { data: unread = 0 } = useQuery({
     queryKey: ["notifications", "unread-count"],
     queryFn: () => notificationsApi.unreadCount(),
+    enabled: !!user && !isMock,
   });
 
   // Real-time bell via Server-Sent Events. The server pushes a `notification`
