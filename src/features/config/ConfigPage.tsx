@@ -40,10 +40,11 @@ export function ConfigPage() {
   const [notifs, setNotifs] = useState(DEFAULT_NOTIFS);
   const [saving, setSaving] = useState(false);
 
-  // Live tenant config (real backend). Disabled in mock mode.
-  const profileQ = useQuery({ queryKey: ["tenant", "profile"], queryFn: () => tenantApi.profile(), enabled: !isMock, retry: false });
-  const apiAccessQ = useQuery({ queryKey: ["tenant", "api-access"], queryFn: () => tenantApi.apiAccess(), enabled: !isMock, retry: false });
-  const notifsQ = useQuery({ queryKey: ["tenant", "notifs"], queryFn: () => tenantApi.notifications(), enabled: !isMock, retry: false });
+  // Live tenant config (real backend). Disabled in mock mode and for super admins
+  // (super admins have no tenant_id in their JWT → backend returns 422).
+  const profileQ = useQuery({ queryKey: ["tenant", "profile"], queryFn: () => tenantApi.profile(), enabled: !isMock && !superAdmin, retry: false });
+  const apiAccessQ = useQuery({ queryKey: ["tenant", "api-access"], queryFn: () => tenantApi.apiAccess(), enabled: !isMock && !superAdmin, retry: false });
+  const notifsQ = useQuery({ queryKey: ["tenant", "notifs"], queryFn: () => tenantApi.notifications(), enabled: !isMock && !superAdmin, retry: false });
 
   useEffect(() => {
     if (profileQ.data) {

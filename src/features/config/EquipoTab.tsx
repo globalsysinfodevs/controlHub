@@ -22,6 +22,7 @@ import {
 } from "@/lib/api/endpoints";
 import { useMarket } from "@/store/marketplace";
 import { toast } from "@/components/ui/Toast";
+import { useAuth, isSuperAdmin } from "@/store/auth";
 
 const ROLE_LABEL: Record<string, string> = {
   platform_super_admin: "Super Admin",
@@ -79,9 +80,12 @@ export function EquipoTab() {
 
 function UsersPanel() {
   const qc = useQueryClient();
+  const user = useAuth((s) => s.user);
+  const superAdmin = isSuperAdmin(user?.role);
   const { data: usersRaw } = useQuery({
     queryKey: ["team", "users"],
     queryFn: () => usersApi.list(),
+    enabled: !isMock && !superAdmin,
     retry: false,
   });
 
@@ -475,9 +479,12 @@ function GroupSettings({ group, onRefresh }: { group: TeamGroup; onRefresh: () =
 
 function GroupMembers({ group, onRefresh }: { group: TeamGroup; onRefresh: () => void }) {
   const qc = useQueryClient();
+  const _user = useAuth((s) => s.user);
+  const _superAdmin = isSuperAdmin(_user?.role);
   const { data: allUsersRaw } = useQuery({
     queryKey: ["team", "users"],
     queryFn: () => usersApi.list(),
+    enabled: !isMock && !_superAdmin,
     retry: false,
   });
   const allUsers: TeamUser[] = Array.isArray(allUsersRaw)

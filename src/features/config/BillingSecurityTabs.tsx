@@ -5,6 +5,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { toast } from "@/components/ui/Toast";
 import { isMock } from "@/lib/api/client";
 import { tenantApi, type TenantPlan, type TenantSecurity } from "@/lib/api/endpoints";
+import { useAuth, isSuperAdmin } from "@/store/auth";
 
 const fmtCompact = (n: number) => new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
@@ -12,7 +13,9 @@ const fmtCompact = (n: number) => new Intl.NumberFormat("en", { notation: "compa
 const DEFAULT_PLAN: TenantPlan = { plan_name: "Pro", monthly_token_limit: 5_000_000, monthly_cost: 199, max_agents: 8, max_users: 15 };
 
 export function PlanTab() {
-  const q = useQuery({ queryKey: ["tenant", "plan"], queryFn: () => tenantApi.plan(), enabled: !isMock, retry: false });
+  const user = useAuth((s) => s.user);
+  const superAdmin = isSuperAdmin(user?.role);
+  const q = useQuery({ queryKey: ["tenant", "plan"], queryFn: () => tenantApi.plan(), enabled: !isMock && !superAdmin, retry: false });
   const [plan, setPlan] = useState<TenantPlan>(DEFAULT_PLAN);
   const [saving, setSaving] = useState(false);
   useEffect(() => { if (q.data) setPlan({ ...DEFAULT_PLAN, ...q.data }); }, [q.data]);
@@ -64,7 +67,9 @@ function PlanCard({ icon, label, value, onChange, hint, prefix }: { icon: React.
 const DEFAULT_SEC: TenantSecurity = { azure_ad_enabled: false, mfa_required: true, allowed_ips: ["192.168.1.0/24", "10.0.0.0/8"], prompt_storage_mode: "full", advanced_audit_logging: true };
 
 export function SeguridadTab() {
-  const q = useQuery({ queryKey: ["tenant", "security"], queryFn: () => tenantApi.security(), enabled: !isMock, retry: false });
+  const user = useAuth((s) => s.user);
+  const superAdmin = isSuperAdmin(user?.role);
+  const q = useQuery({ queryKey: ["tenant", "security"], queryFn: () => tenantApi.security(), enabled: !isMock && !superAdmin, retry: false });
   const [sec, setSec] = useState<TenantSecurity>(DEFAULT_SEC);
   const [ip, setIp] = useState("");
   const [saving, setSaving] = useState(false);
