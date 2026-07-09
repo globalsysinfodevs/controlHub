@@ -222,18 +222,27 @@ export interface TenantUpdate {
 export interface InviteTenantAdminRequest { name: string; email: string; }
 export interface PlatformUserStatusUpdate { status: "active" | "inactive"; }
 
+/** Unwrap a backend list that may be a plain array OR { items, total } envelope. */
+function unwrapList<T>(res: unknown): T[] {
+  if (Array.isArray(res)) return res as T[];
+  if (res && typeof res === "object" && "items" in (res as object)) {
+    return ((res as { items: T[] }).items) ?? [];
+  }
+  return [];
+}
+
 export const superAdminApi = {
   // Industries
-  listIndustries: (page = 1, page_size = 50) =>
-    api.get<Industry[]>("/super-admin/industries", { page, page_size }),
+  listIndustries: async (page = 1, page_size = 50): Promise<Industry[]> =>
+    unwrapList<Industry>(await api.get<unknown>("/super-admin/industries", { page, page_size })),
   createIndustry: (body: IndustryCreate) => api.post<Industry>("/super-admin/industries", body),
   updateIndustry: (id: string, body: IndustryUpdate) =>
     api.patch<Industry>(`/super-admin/industries/${id}`, body),
   deleteIndustry: (id: string) => api.delete<null>(`/super-admin/industries/${id}`),
 
   // Tenants
-  listTenants: (page = 1, page_size = 20, include_deleted = false) =>
-    api.get<PlatformTenant[]>("/super-admin/tenants", { page, page_size, include_deleted: String(include_deleted) }),
+  listTenants: async (page = 1, page_size = 20, include_deleted = false): Promise<PlatformTenant[]> =>
+    unwrapList<PlatformTenant>(await api.get<unknown>("/super-admin/tenants", { page, page_size, include_deleted: String(include_deleted) })),
   createTenant: (body: TenantCreate) => api.post<PlatformTenant>("/super-admin/tenants", body),
   getTenant: (id: string) => api.get<PlatformTenantDetail>(`/super-admin/tenants/${id}`),
   updateTenant: (id: string, body: TenantUpdate) =>
@@ -244,13 +253,13 @@ export const superAdminApi = {
     api.post<TenantInvitation>(`/super-admin/tenants/${tenantId}/invite-admin`, body),
 
   // Platform users
-  listUsers: (page = 1, page_size = 20, opts?: { tenant_id?: string; include_deleted?: boolean }) =>
-    api.get<PlatformUser[]>("/super-admin/users", {
+  listUsers: async (page = 1, page_size = 20, opts?: { tenant_id?: string; include_deleted?: boolean }): Promise<PlatformUser[]> =>
+    unwrapList<PlatformUser>(await api.get<unknown>("/super-admin/users", {
       page,
       page_size,
       tenant_id: opts?.tenant_id,
       include_deleted: opts?.include_deleted ? "true" : undefined,
-    }),
+    })),
   getUser: (id: string) => api.get<PlatformUser>(`/super-admin/users/${id}`),
   updateUserStatus: (id: string, body: PlatformUserStatusUpdate) =>
     api.patch<PlatformUser>(`/super-admin/users/${id}/status`, body),
@@ -960,9 +969,30 @@ export const platformConfigApi = {
   list: () => api.get<PlatformConfigListEnvelope>("/platform-config"),
   /** GET /api/v1/platform-config/{key} */
   get: (key: string) => api.get<PlatformConfigResponse>(`/platform-config/${key}`),
-  /** PUT /api/v1/platform-config/{key} — body: { value: string } */
-  upsert: (key: string, value: unknown) =>
+  /**
+   * POST /api/v1/platform-config — create a new entry.
+   * body: { key: string; value: string }
+   */
+  create: (key: string, value: unknown) =>
+    api.post<PlatformConfigResponse>("/platform-config", { key, value }),
+  /** PUT /api/v1/platform-config/{key} — update an existing entry. body: { value: string } */
+  update: (key: string, value: unknown) =>
     api.put<PlatformConfigResponse>(`/platform-config/${key}`, { value } satisfies PlatformConfigUpdateRequest),
+  /**
+   * Upsert helper: tries PUT first (update); if the backend returns 404 (key
+   * doesn't exist yet) it falls back to POST (create).
+   */
+  upsert: async (key: string, value: unknown): Promise<PlatformConfigResponse> => {
+    try {
+      return await platformConfigApi.update(key, value);
+    } catch (err) {
+      const e = err as { status?: number };
+      if (e.status === 404 || e.status === 422) {
+        return platformConfigApi.create(key, value);
+      }
+      throw err;
+    }
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

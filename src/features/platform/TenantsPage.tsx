@@ -69,12 +69,13 @@ export function TenantsPage() {
     queryKey: ["platform", "tenants", page, includeDeleted],
     queryFn: () => superAdminApi.listTenants(page, PAGE_SIZE, includeDeleted),
   });
-  const { data: industries } = useQuery({
+  const { data: industries = [] } = useQuery({
     queryKey: ["platform", "industries"],
+    // listIndustries now unwraps { items, total } internally — returns Industry[]
     queryFn: () => superAdminApi.listIndustries(),
   });
   const industryName = (id: string | null) =>
-    (id && industries?.find((i) => i.id === id)?.name) || "—";
+    (id && industries.find((i) => i.id === id)?.name) || "—";
 
   const meta = data ? paginationOf(data) : undefined;
   const totalPages = meta?.total_pages ?? 1;

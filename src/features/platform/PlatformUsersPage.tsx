@@ -35,17 +35,13 @@ export function PlatformUsersPage() {
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [tenantPickerOpen, setTenantPickerOpen] = useState(false);
 
-  // Fetch tenant list for the picker
+  // Fetch tenant list for the picker.
+  // superAdminApi.listTenants already returns the unwrapped array (the client
+  // handles both the { success, data } envelope and the { items, total } envelope
+  // via the request() helper). No manual re-unwrapping needed.
   const { data: tenantList = [] } = useQuery({
     queryKey: ["super-admin", "tenants", "users-picker"],
-    queryFn: async () => {
-      const res = await superAdminApi.listTenants(1, 100) as unknown;
-      if (Array.isArray(res)) return res as { id: string; name: string }[];
-      if (res && typeof res === "object" && "items" in (res as object)) {
-        return (res as { items: { id: string; name: string }[] }).items ?? [];
-      }
-      return [];
-    },
+    queryFn: () => superAdminApi.listTenants(1, 100),
     staleTime: 60_000,
   });
 
