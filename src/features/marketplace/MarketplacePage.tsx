@@ -10,10 +10,10 @@ import { MarketAgentCard } from "./MarketAgentCard";
 import { DetailPanel } from "./DetailPanel";
 
 const STATUS = [
-  { key: "all", label: "Todos" },
-  { key: "enabled", label: "Habilitados" },
-  { key: "disabled", label: "Disponibles" },
-  { key: "new", label: "✨ Nuevos" },
+  { key: "all", label: "All" },
+  { key: "enabled", label: "Enabled" },
+  { key: "disabled", label: "Available" },
+  { key: "new", label: "✨ New" },
 ];
 
 interface BackendCategory { id: string; name: string; slug?: string; icon?: string | null; }
@@ -69,17 +69,31 @@ export function MarketplacePage() {
 
   // Merge backend categories with the local CATEGORIES list so the sidebar
   // always shows something even before the backend responds.
+  // Backend categories are matched to local keys by slug/name for correct filtering.
   const allCats: BackendCategory[] = useMemo(() => {
-    if (backendCats.length > 0) return backendCats;
+    if (backendCats.length > 0) {
+      // Map backend categories to local keys where possible
+      return backendCats.map((bc) => {
+        const slug = bc.slug ?? bc.name;
+        // Try to find a matching local category
+        const local = CATEGORIES.find(
+          (lc) =>
+            lc.key.toLowerCase() === slug.toLowerCase() ||
+            lc.label.toLowerCase() === bc.name.toLowerCase() ||
+            lc.key.toLowerCase() === bc.name.toLowerCase()
+        );
+        return local
+          ? { ...bc, slug: local.key, name: local.label }
+          : bc;
+      });
+    }
     return CATEGORIES.map((c) => ({ id: c.key, name: c.label, slug: c.key }));
   }, [backendCats]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: agents.length };
     for (const a of agents) {
-      // count by local .cat field
       if (a.cat) c[a.cat] = (c[a.cat] ?? 0) + 1;
-      // count by backend category slug
       const slug = (a as unknown as { category?: string }).category;
       if (slug) c[slug] = (c[slug] ?? 0) + 1;
     }
@@ -105,7 +119,7 @@ export function MarketplacePage() {
 
   function handleToggle(a: CatalogAgent) {
     const now = toggle(a.id);
-    toast.success(now ? "Agente habilitado" : "Agente deshabilitado", a.name);
+    toast.success(now ? "Agent enabled" : "Agent disabled", a.name);
   }
 
   async function handleCreateCategory() {
@@ -113,13 +127,13 @@ export function MarketplacePage() {
     setSavingCat(true);
     try {
       await agentsApi.createCategory({ name: newCatName.trim(), icon: newCatIcon.trim() || undefined });
-      toast.success("Categoría creada", newCatName.trim());
+      toast.success("Category created", newCatName.trim());
       void qc.invalidateQueries({ queryKey: ["agent-categories"] });
       setNewCatName("");
       setNewCatIcon("");
       setShowNewCat(false);
     } catch (e) {
-      toast.error("Error al crear categoría", (e as Error).message);
+      toast.error("Error creating category", (e as Error).message);
     } finally {
       setSavingCat(false);
     }
@@ -138,8 +152,7 @@ export function MarketplacePage() {
 
   // Days until token reset (approximate: end of current month)
   const now = new Date();
-  const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 1).getDate() -
-    now.getDate() + 1;
+  const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)]">
@@ -148,16 +161,16 @@ export function MarketplacePage() {
         <div className="space-y-5 p-4">
           {/* Categories */}
           <div>
-            <p className="eyebrow mb-2 px-3">Categorías</p>
+            <p className="eyebrow mb-2 px-3">CATEGORIES</p>
             <ul className="space-y-0.5">
-              <CatBtn label="Todos" count={counts.all} active={cat === "all"} dot="bg-secondary" onClick={() => setCat("all")} />
+              <CatBtn label="All" count={counts.all} active={cat === "all"} dot="bg-secondary" onClick={() => setCat("all")} />
               {allCats.map((c) => {
                 const key = c.slug ?? c.name;
                 const label = CAT_LABEL[key] ?? CAT_LABEL[c.name] ?? c.name;
                 return (
                   <CatBtn
                     key={c.id}
-                    label={c.icon ? `${c.icon} ${label}` : label}
+                    label={label}
                     count={counts[key] ?? counts[c.name] ?? 0}
                     active={cat === key}
                     dot={cat === key ? "bg-secondary" : "bg-g-mid"}
@@ -173,7 +186,7 @@ export function MarketplacePage() {
                 {showNewCat ? (
                   <div className="rounded-xl border border-g-mid bg-g-light p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-primary">Nueva categoría</span>
+                      <span className="text-xs font-semibold text-primary">New category</span>
                       <button
                         onClick={() => { setShowNewCat(false); setNewCatName(""); setNewCatIcon(""); }}
                         className="text-g-dark hover:text-primary"
@@ -189,13 +202,13 @@ export function MarketplacePage() {
                         if (e.key === "Enter") void handleCreateCategory();
                         if (e.key === "Escape") setShowNewCat(false);
                       }}
-                      placeholder="Nombre de categoría"
+                      placeholder="Category name"
                       className="w-full rounded-lg border border-g-mid bg-white px-2.5 py-1.5 text-xs text-primary placeholder-g-dark focus:border-secondary focus:outline-none focus:ring-1 focus:ring-secondary/20"
                     />
                     <input
                       value={newCatIcon}
                       onChange={(e) => setNewCatIcon(e.target.value)}
-                      placeholder="Emoji (opcional)"
+                      placeholder="Emoji (optional)"
                       className="w-full rounded-lg border border-g-mid bg-white px-2.5 py-1.5 text-xs text-primary placeholder-g-dark focus:border-secondary focus:outline-none focus:ring-1 focus:ring-secondary/20"
                     />
                     <button
@@ -203,7 +216,7 @@ export function MarketplacePage() {
                       disabled={savingCat || !newCatName.trim()}
                       className="w-full rounded-lg bg-secondary px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
-                      {savingCat ? "Guardando…" : "Crear"}
+                      {savingCat ? "Saving…" : "Create"}
                     </button>
                   </div>
                 ) : (
@@ -212,7 +225,7 @@ export function MarketplacePage() {
                     className="flex w-full items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-g-dark transition-colors hover:bg-g-light hover:text-primary"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    Nueva categoría
+                    New category
                   </button>
                 )}
               </div>
@@ -223,9 +236,9 @@ export function MarketplacePage() {
 
           {/* Token usage */}
           <div className="px-1">
-            <p className="eyebrow mb-3 px-2">Uso de tokens</p>
+            <p className="eyebrow mb-3 px-2">USE OF TOKENS</p>
             <div className="mb-1.5 flex justify-between px-2 text-xs">
-              <span className="text-g-dark">Este mes</span>
+              <span className="text-g-dark">This month</span>
               <span className="font-semibold text-primary">
                 {fmtTokens(tokensUsed)} / {fmtTokens(tokensLimit)}
               </span>
@@ -237,7 +250,7 @@ export function MarketplacePage() {
               />
             </div>
             <p className="mt-2 px-2 text-xs text-g-dark">
-              {tokensPct}% utilizado · reinicia en {daysLeft} días
+              {tokensPct}% used · Restarts in {daysLeft} days
             </p>
           </div>
 
@@ -245,10 +258,10 @@ export function MarketplacePage() {
 
           {/* Quick stats */}
           <div className="space-y-3 px-3">
-            <QuickStat label="Agentes activos" value={String(enabledCount)} />
-            <QuickStat label="Consultas hoy" value={String(invocationsToday)} />
-            <QuickStat label="Tiempo promedio" value={avgLatencyS} />
-            <QuickStat label="Disponibilidad" value={availability} valueClass={availabilityClass} />
+            <QuickStat label="Active agents" value={String(enabledCount)} />
+            <QuickStat label="Consultations today" value={String(invocationsToday)} />
+            <QuickStat label="Average time" value={avgLatencyS} />
+            <QuickStat label="Availability" value={availability} valueClass={availabilityClass} />
           </div>
         </div>
       </aside>
@@ -258,10 +271,10 @@ export function MarketplacePage() {
         {/* Stats bar */}
         <div className="border-b border-g-mid bg-white px-4 py-4 sm:px-6">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <StatCard icon={<Boxes className="h-5 w-5 text-secondary" />} tint="bg-secondary/10" value={String(enabledCount)} label="Agentes habilitados" />
-            <StatCard icon={<MessageSquareText className="h-5 w-5 text-tertiary" />} tint="bg-tertiary/10" value={String(invocationsToday)} label="Consultas hoy" />
-            <StatCard icon={<Zap className="h-5 w-5 text-primary" />} tint="bg-primary/10" value={fmtTokens(tokensUsed)} label="Tokens consumidos" />
-            <StatCard icon={<CircleCheck className="h-5 w-5 text-ok" />} tint="bg-ok/10" value={availability} label="Disponibilidad" />
+            <StatCard icon={<Boxes className="h-5 w-5 text-secondary" />} tint="bg-secondary/10" value={String(enabledCount)} label="Authorized agents" />
+            <StatCard icon={<MessageSquareText className="h-5 w-5 text-tertiary" />} tint="bg-tertiary/10" value={String(invocationsToday)} label="Consultations today" />
+            <StatCard icon={<Zap className="h-5 w-5 text-primary" />} tint="bg-primary/10" value={fmtTokens(tokensUsed)} label="Tokens consumed" />
+            <StatCard icon={<CircleCheck className="h-5 w-5 text-ok" />} tint="bg-ok/10" value={availability} label="Availability" />
           </div>
         </div>
 
@@ -273,7 +286,7 @@ export function MarketplacePage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar agente..."
+                placeholder="Looking for an agent..."
                 className="w-full rounded-xl border border-g-mid bg-white py-2.5 pl-9 pr-4 text-sm text-primary placeholder-g-dark transition-colors focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/20"
               />
             </div>
@@ -289,13 +302,13 @@ export function MarketplacePage() {
               onChange={(e) => setSort(e.target.value)}
               className="ml-auto rounded-xl border border-g-mid bg-white px-3 py-2.5 text-xs text-g-dark transition-colors focus:border-secondary focus:outline-none"
             >
-              <option value="relevant">Más relevante</option>
-              <option value="used">Más usado</option>
+              <option value="relevant">More relevant</option>
+              <option value="used">Most used</option>
               <option value="az">A–Z</option>
             </select>
           </div>
           <p className="mt-2.5 text-xs text-g-dark">
-            Mostrando <span className="font-semibold text-primary">{visible.length}</span> agentes
+            Showing <span className="font-semibold text-primary">{visible.length}</span> agents
           </p>
         </div>
 
@@ -304,8 +317,8 @@ export function MarketplacePage() {
           {visible.length === 0 ? (
             <div className="panel flex flex-col items-center justify-center px-6 py-16 text-center">
               <Search className="mb-3 h-7 w-7 text-g-dark" />
-              <h3 className="text-base font-semibold text-primary">Sin resultados</h3>
-              <p className="mt-1 text-sm text-g-dark">Ajusta la búsqueda, la categoría o los filtros.</p>
+              <h3 className="text-base font-semibold text-primary">No results</h3>
+              <p className="mt-1 text-sm text-g-dark">Adjust the search, category or filters.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

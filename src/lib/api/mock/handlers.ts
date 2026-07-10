@@ -43,14 +43,16 @@ const saId = (prefix: string) => `${prefix}_${++_saSeq}`;
 const saNow = () => new Date().toISOString();
 
 // ── Agent categories mock state ───────────────────────────────────────────────
+// Slugs match the `cat` keys used in data.ts (CATALOG agents) so category
+// filtering works correctly in the marketplace sidebar.
 interface MockAgentCategory { id: string; name: string; slug: string; icon: string | null; created_at: string; }
 const agentCategories: MockAgentCategory[] = [
-  { id: "cat_support",    name: "Support",    slug: "support",    icon: "🎧", created_at: saNow() },
-  { id: "cat_analytics",  name: "Analytics",  slug: "analytics",  icon: "📊", created_at: saNow() },
-  { id: "cat_automation", name: "Automation", slug: "automation", icon: "⚡", created_at: saNow() },
-  { id: "cat_knowledge",  name: "Knowledge",  slug: "knowledge",  icon: "📚", created_at: saNow() },
-  { id: "cat_coding",     name: "Coding",     slug: "coding",     icon: "💻", created_at: saNow() },
-  { id: "cat_research",   name: "Research",   slug: "research",   icon: "🔍", created_at: saNow() },
+  { id: "cat_fin",  name: "Finance",           slug: "Finanzas",    icon: null, created_at: saNow() },
+  { id: "cat_mkt",  name: "Marketing",         slug: "Marketing",   icon: null, created_at: saNow() },
+  { id: "cat_hr",   name: "Human Resources",   slug: "RRHH",        icon: null, created_at: saNow() },
+  { id: "cat_leg",  name: "Legal",             slug: "Legal",       icon: null, created_at: saNow() },
+  { id: "cat_ops",  name: "Operations",        slug: "Operaciones", icon: null, created_at: saNow() },
+  { id: "cat_cs",   name: "Customer Success",  slug: "CS",          icon: null, created_at: saNow() },
 ];
 
 interface MockIndustry { id: string; name: string; icon: string | null; created_at: string; updated_at: string; }
