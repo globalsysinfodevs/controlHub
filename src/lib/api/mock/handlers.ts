@@ -252,6 +252,32 @@ export async function mockRequest(
     const range = (Number(q.get("range")) || 30) as 7 | 30 | 90;
     return ok(db.dashboardSummary([7, 30, 90].includes(range) ? range : 30));
   }
+  if (m === "GET" && p === "/analytics/dashboard") {
+    const period = (Number(q.get("period")) || 30) as 7 | 30 | 90;
+    const s = db.dashboardSummary([7, 30, 90].includes(period) ? period : 30);
+    // Return in the live backend envelope shape that mapDashboard() expects
+    return ok({
+      kpis: {
+        tokens_total: s.tokens_used,
+        tokens_delta_pct: s.tokens_delta_pct,
+        total_queries: s.invocations_today,
+        queries_delta_pct: s.invocations_delta_pct,
+        avg_latency_ms: s.avg_latency_ms,
+        cost_estimated: s.est_cost_mtd,
+        cost_delta_pct: s.cost_delta_pct,
+      },
+      budget: { limit: s.tokens_limit },
+      series: s.series,
+      cost_by_agent: s.top_agents.map((a) => ({ agent_id: a.id, name: a.name, tokens: a.tokens })),
+      top_agents: s.top_agents,
+      model_split: s.model_split,
+      success_rate: s.success_rate,
+      active_agents: s.active_agents,
+      total_agents: s.total_agents,
+      active_users: s.active_users,
+      open_security_alerts: s.open_security_alerts,
+    });
+  }
 
   // ── Agent categories ─────────────────────────────────────────────────
   if (m === "GET" && p === "/agents/categories") {

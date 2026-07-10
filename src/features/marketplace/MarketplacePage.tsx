@@ -3,9 +3,9 @@ import { Boxes, CircleCheck, Plus, Search, X, Zap, MessageSquareText } from "luc
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMarket } from "@/store/marketplace";
 import { useAuth, isSuperAdmin } from "@/store/auth";
-import { agentsApi } from "@/lib/api/endpoints";
+import { agentsApi, dashboardApi } from "@/lib/api/endpoints";
 import { toast } from "@/components/ui/Toast";
-import type { CatalogAgent } from "./data";
+import { CATEGORIES, CAT_LABEL, type CatalogAgent } from "./data";
 import { MarketAgentCard } from "./MarketAgentCard";
 import { DetailPanel } from "./DetailPanel";
 
@@ -17,6 +17,13 @@ const STATUS = [
 ];
 
 interface BackendCategory { id: string; name: string; slug?: string; icon?: string | null; }
+
+/** Format a raw token count into a human-readable string (e.g. 1_200_000 → "1.2M"). */
+function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
+  return String(n);
+}
 
 export function MarketplacePage() {
   const { agents, toggle, hydrate } = useMarket();
@@ -32,7 +39,7 @@ export function MarketplacePage() {
   const [sort, setSort] = useState("relevant");
   const [detailId, setDetailId] = useState<string | null>(null);
 
-  // ── New category modal state ──────────────────────────────────────────
+  // ── New category form state ───────────────────────────────────────────
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCatName, setNewCatName] = useState("");
   const [newCatIcon, setNewCatIcon] = useState("");
@@ -51,13 +58,28 @@ export function MarketplacePage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // ── Fetch dashboard summary for sidebar stats ─────────────────────────
+  const { data: summary } = useQuery({
+    queryKey: ["dashboard-summary", 30],
+    queryFn: () => dashboardApi.summary(30),
+    staleTime: 2 * 60 * 1000,
+  });
+
   const enabledCount = agents.filter((a) => a.enabled).length;
+
+  // Merge backend categories with the local CATEGORIES list so the sidebar
+  // always shows something even before the backend responds.
+  const allCats: BackendCategory[] = useMemo(() => {
+    if (backendCats.length > 0) return backendCats;
+    return CATEGORIES.map((c) => ({ id: c.key, name: c.label, slug: c.key }));
+  }, [backendCats]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: agents.length };
-    for (const a of agents) c[a.cat] = (c[a.cat] ?? 0) + 1;
-    // Also count by backend category name/slug
     for (const a of agents) {
+      // count by local .cat field
+      if (a.cat) c[a.cat] = (c[a.cat] ?? 0) + 1;
+      // count by backend category slug
       const slug = (a as unknown as { category?: string }).category;
       if (slug) c[slug] = (c[slug] ?? 0) + 1;
     }
@@ -92,7 +114,7 @@ export function MarketplacePage() {
     try {
       await agentsApi.createCategory({ name: newCatName.trim(), icon: newCatIcon.trim() || undefined });
       toast.success("Categoría creada", newCatName.trim());
-      qc.invalidateQueries({ queryKey: ["agent-categories"] });
+      void qc.invalidateQueries({ queryKey: ["agent-categories"] });
       setNewCatName("");
       setNewCatIcon("");
       setShowNewCat(false);
@@ -105,27 +127,37 @@ export function MarketplacePage() {
 
   const detail = agents.find((a) => a.id === detailId) ?? null;
 
+  // Derived sidebar stats from backend
+  const tokensUsed = summary?.tokens_used ?? 0;
+  const tokensLimit = summary?.tokens_limit ?? 5_000_000;
+  const tokensPct = tokensLimit > 0 ? Math.min(100, Math.round((tokensUsed / tokensLimit) * 100)) : 0;
+  const invocationsToday = summary?.invocations_today ?? 0;
+  const avgLatencyS = summary ? (summary.avg_latency_ms / 1000).toFixed(1) + " s" : "—";
+  const availability = summary ? summary.success_rate.toFixed(1) + "%" : "—";
+  const availabilityClass = summary && summary.success_rate >= 99 ? "text-ok" : "text-primary";
+
+  // Days until token reset (approximate: end of current month)
+  const now = new Date();
+  const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 1).getDate() -
+    now.getDate() + 1;
+
   return (
     <div className="flex min-h-[calc(100vh-4rem)]">
       {/* ── Category sidebar ── */}
       <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-60 flex-shrink-0 overflow-y-auto border-r border-g-mid bg-white md:block">
-        <div className="space-y-4 p-4">
+        <div className="space-y-5 p-4">
+          {/* Categories */}
           <div>
             <p className="eyebrow mb-2 px-3">Categorías</p>
             <ul className="space-y-0.5">
-              <CatBtn
-                label="Todos"
-                count={counts.all}
-                active={cat === "all"}
-                dot="bg-secondary"
-                onClick={() => setCat("all")}
-              />
-              {backendCats.map((c) => {
+              <CatBtn label="Todos" count={counts.all} active={cat === "all"} dot="bg-secondary" onClick={() => setCat("all")} />
+              {allCats.map((c) => {
                 const key = c.slug ?? c.name;
+                const label = CAT_LABEL[key] ?? CAT_LABEL[c.name] ?? c.name;
                 return (
                   <CatBtn
                     key={c.id}
-                    label={c.icon ? `${c.icon} ${c.name}` : c.name}
+                    label={c.icon ? `${c.icon} ${label}` : label}
                     count={counts[key] ?? counts[c.name] ?? 0}
                     active={cat === key}
                     dot={cat === key ? "bg-secondary" : "bg-g-mid"}
@@ -142,7 +174,10 @@ export function MarketplacePage() {
                   <div className="rounded-xl border border-g-mid bg-g-light p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-primary">Nueva categoría</span>
-                      <button onClick={() => { setShowNewCat(false); setNewCatName(""); setNewCatIcon(""); }} className="text-g-dark hover:text-primary">
+                      <button
+                        onClick={() => { setShowNewCat(false); setNewCatName(""); setNewCatIcon(""); }}
+                        className="text-g-dark hover:text-primary"
+                      >
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -150,7 +185,10 @@ export function MarketplacePage() {
                       autoFocus
                       value={newCatName}
                       onChange={(e) => setNewCatName(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") void handleCreateCategory(); if (e.key === "Escape") setShowNewCat(false); }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void handleCreateCategory();
+                        if (e.key === "Escape") setShowNewCat(false);
+                      }}
                       placeholder="Nombre de categoría"
                       className="w-full rounded-lg border border-g-mid bg-white px-2.5 py-1.5 text-xs text-primary placeholder-g-dark focus:border-secondary focus:outline-none focus:ring-1 focus:ring-secondary/20"
                     />
@@ -180,6 +218,38 @@ export function MarketplacePage() {
               </div>
             )}
           </div>
+
+          <div className="border-t border-g-mid" />
+
+          {/* Token usage */}
+          <div className="px-1">
+            <p className="eyebrow mb-3 px-2">Uso de tokens</p>
+            <div className="mb-1.5 flex justify-between px-2 text-xs">
+              <span className="text-g-dark">Este mes</span>
+              <span className="font-semibold text-primary">
+                {fmtTokens(tokensUsed)} / {fmtTokens(tokensLimit)}
+              </span>
+            </div>
+            <div className="mx-2 h-1.5 rounded-full bg-g-mid">
+              <div
+                className="h-1.5 rounded-full bg-secondary transition-all duration-1000"
+                style={{ width: `${tokensPct}%` }}
+              />
+            </div>
+            <p className="mt-2 px-2 text-xs text-g-dark">
+              {tokensPct}% utilizado · reinicia en {daysLeft} días
+            </p>
+          </div>
+
+          <div className="border-t border-g-mid" />
+
+          {/* Quick stats */}
+          <div className="space-y-3 px-3">
+            <QuickStat label="Agentes activos" value={String(enabledCount)} />
+            <QuickStat label="Consultas hoy" value={String(invocationsToday)} />
+            <QuickStat label="Tiempo promedio" value={avgLatencyS} />
+            <QuickStat label="Disponibilidad" value={availability} valueClass={availabilityClass} />
+          </div>
         </div>
       </aside>
 
@@ -189,9 +259,9 @@ export function MarketplacePage() {
         <div className="border-b border-g-mid bg-white px-4 py-4 sm:px-6">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <StatCard icon={<Boxes className="h-5 w-5 text-secondary" />} tint="bg-secondary/10" value={String(enabledCount)} label="Agentes habilitados" />
-            <StatCard icon={<MessageSquareText className="h-5 w-5 text-tertiary" />} tint="bg-tertiary/10" value={String(agents.length)} label="Agentes disponibles" />
-            <StatCard icon={<Zap className="h-5 w-5 text-primary" />} tint="bg-primary/10" value={String(backendCats.length || "—")} label="Categorías" />
-            <StatCard icon={<CircleCheck className="h-5 w-5 text-ok" />} tint="bg-ok/10" value={`${agents.length > 0 ? Math.round((enabledCount / agents.length) * 100) : 0}%`} label="Habilitados" />
+            <StatCard icon={<MessageSquareText className="h-5 w-5 text-tertiary" />} tint="bg-tertiary/10" value={String(invocationsToday)} label="Consultas hoy" />
+            <StatCard icon={<Zap className="h-5 w-5 text-primary" />} tint="bg-primary/10" value={fmtTokens(tokensUsed)} label="Tokens consumidos" />
+            <StatCard icon={<CircleCheck className="h-5 w-5 text-ok" />} tint="bg-ok/10" value={availability} label="Disponibilidad" />
           </div>
         </div>
 
@@ -267,6 +337,15 @@ function CatBtn({ label, count, active, dot, onClick }: { label: string; count: 
         <span className="ml-auto rounded-full bg-g-light px-2 py-0.5 text-xs text-g-dark">{count}</span>
       </button>
     </li>
+  );
+}
+
+function QuickStat({ label, value, valueClass = "text-primary" }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-g-dark">{label}</span>
+      <span className={"text-xs font-semibold " + valueClass}>{value}</span>
+    </div>
   );
 }
 
