@@ -42,6 +42,17 @@ let _saSeq = 100;
 const saId = (prefix: string) => `${prefix}_${++_saSeq}`;
 const saNow = () => new Date().toISOString();
 
+// ── Agent categories mock state ───────────────────────────────────────────────
+interface MockAgentCategory { id: string; name: string; slug: string; icon: string | null; created_at: string; }
+const agentCategories: MockAgentCategory[] = [
+  { id: "cat_support",    name: "Support",    slug: "support",    icon: "🎧", created_at: saNow() },
+  { id: "cat_analytics",  name: "Analytics",  slug: "analytics",  icon: "📊", created_at: saNow() },
+  { id: "cat_automation", name: "Automation", slug: "automation", icon: "⚡", created_at: saNow() },
+  { id: "cat_knowledge",  name: "Knowledge",  slug: "knowledge",  icon: "📚", created_at: saNow() },
+  { id: "cat_coding",     name: "Coding",     slug: "coding",     icon: "💻", created_at: saNow() },
+  { id: "cat_research",   name: "Research",   slug: "research",   icon: "🔍", created_at: saNow() },
+];
+
 interface MockIndustry { id: string; name: string; icon: string | null; created_at: string; updated_at: string; }
 const saIndustries: MockIndustry[] = [
   { id: "ind_tech", name: "Tecnología", icon: "💻", created_at: saNow(), updated_at: saNow() },
@@ -240,6 +251,20 @@ export async function mockRequest(
   if (m === "GET" && p === "/analytics/summary") {
     const range = (Number(q.get("range")) || 30) as 7 | 30 | 90;
     return ok(db.dashboardSummary([7, 30, 90].includes(range) ? range : 30));
+  }
+
+  // ── Agent categories ─────────────────────────────────────────────────
+  if (m === "GET" && p === "/agents/categories") {
+    return ok([...agentCategories], "Categories retrieved");
+  }
+  if (m === "POST" && p === "/agents/categories") {
+    const b = (body ?? {}) as Json;
+    const name = String(b.name ?? "").trim();
+    if (!name) throw apiError(422, "validation_error", "Category name is required");
+    const slug = name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+    const cat: MockAgentCategory = { id: saId("cat"), name, slug, icon: (b.icon as string) ?? null, created_at: saNow() };
+    agentCategories.push(cat);
+    return ok(cat, "Category created");
   }
 
   // ── Agents ────────────────────────────────────────────────────────────

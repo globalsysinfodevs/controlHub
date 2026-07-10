@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Boxes, CircleCheck, Search, Zap, MessageSquareText } from "lucide-react";
+import { Boxes, CircleCheck, Plus, Search, X, Zap, MessageSquareText } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMarket } from "@/store/marketplace";
+import { useAuth, isSuperAdmin } from "@/store/auth";
+import { agentsApi } from "@/lib/api/endpoints";
 import { toast } from "@/components/ui/Toast";
-import { CATEGORIES, CAT_LABEL, type CatalogAgent } from "./data";
+import type { CatalogAgent } from "./data";
 import { MarketAgentCard } from "./MarketAgentCard";
 import { DetailPanel } from "./DetailPanel";
 
@@ -13,28 +16,60 @@ const STATUS = [
   { key: "new", label: "✨ Nuevos" },
 ];
 
+interface BackendCategory { id: string; name: string; slug?: string; icon?: string | null; }
+
 export function MarketplacePage() {
   const { agents, toggle, hydrate } = useMarket();
-  useEffect(() => {
-    void hydrate();
-  }, [hydrate]);
+  const { user } = useAuth();
+  const isAdmin = isSuperAdmin(user?.role) || user?.role === "tenant_admin";
+  const qc = useQueryClient();
+
+  useEffect(() => { void hydrate(); }, [hydrate]);
+
   const [cat, setCat] = useState("all");
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("relevant");
   const [detailId, setDetailId] = useState<string | null>(null);
 
+  // ── New category modal state ──────────────────────────────────────────
+  const [showNewCat, setShowNewCat] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatIcon, setNewCatIcon] = useState("");
+  const [savingCat, setSavingCat] = useState(false);
+
+  // ── Fetch categories from backend ─────────────────────────────────────
+  const { data: backendCats = [] } = useQuery<BackendCategory[]>({
+    queryKey: ["agent-categories"],
+    queryFn: async () => {
+      const res = await agentsApi.categories() as unknown;
+      if (Array.isArray(res)) return res as BackendCategory[];
+      if (res && typeof res === "object" && "items" in (res as object))
+        return ((res as { items: BackendCategory[] }).items) ?? [];
+      return [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   const enabledCount = agents.filter((a) => a.enabled).length;
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: agents.length };
     for (const a of agents) c[a.cat] = (c[a.cat] ?? 0) + 1;
+    // Also count by backend category name/slug
+    for (const a of agents) {
+      const slug = (a as unknown as { category?: string }).category;
+      if (slug) c[slug] = (c[slug] ?? 0) + 1;
+    }
     return c;
   }, [agents]);
 
   const visible = useMemo(() => {
     let list = agents.filter((a) => {
-      if (cat !== "all" && a.cat !== cat) return false;
+      if (cat !== "all") {
+        const agentCat = a.cat ?? (a as unknown as { category?: string }).category ?? "";
+        if (agentCat !== cat) return false;
+      }
       if (status === "enabled" && !a.enabled) return false;
       if (status === "disabled" && a.enabled) return false;
       if (status === "new" && !a.isNew) return false;
@@ -51,51 +86,99 @@ export function MarketplacePage() {
     toast.success(now ? "Agente habilitado" : "Agente deshabilitado", a.name);
   }
 
+  async function handleCreateCategory() {
+    if (!newCatName.trim()) return;
+    setSavingCat(true);
+    try {
+      await agentsApi.createCategory({ name: newCatName.trim(), icon: newCatIcon.trim() || undefined });
+      toast.success("Categoría creada", newCatName.trim());
+      qc.invalidateQueries({ queryKey: ["agent-categories"] });
+      setNewCatName("");
+      setNewCatIcon("");
+      setShowNewCat(false);
+    } catch (e) {
+      toast.error("Error al crear categoría", (e as Error).message);
+    } finally {
+      setSavingCat(false);
+    }
+  }
+
   const detail = agents.find((a) => a.id === detailId) ?? null;
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)]">
       {/* ── Category sidebar ── */}
       <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-60 flex-shrink-0 overflow-y-auto border-r border-g-mid bg-white md:block">
-        <div className="space-y-5 p-4">
+        <div className="space-y-4 p-4">
           <div>
             <p className="eyebrow mb-2 px-3">Categorías</p>
             <ul className="space-y-0.5">
-              <CatBtn label="Todos" count={counts.all} active={cat === "all"} dot="bg-secondary" onClick={() => setCat("all")} />
-              {CATEGORIES.map((c) => (
-                <CatBtn
-                  key={c.key}
-                  label={c.label}
-                  count={counts[c.key] ?? 0}
-                  active={cat === c.key}
-                  dot={cat === c.key ? "bg-secondary" : "bg-g-mid"}
-                  onClick={() => setCat(c.key)}
-                />
-              ))}
+              <CatBtn
+                label="Todos"
+                count={counts.all}
+                active={cat === "all"}
+                dot="bg-secondary"
+                onClick={() => setCat("all")}
+              />
+              {backendCats.map((c) => {
+                const key = c.slug ?? c.name;
+                return (
+                  <CatBtn
+                    key={c.id}
+                    label={c.icon ? `${c.icon} ${c.name}` : c.name}
+                    count={counts[key] ?? counts[c.name] ?? 0}
+                    active={cat === key}
+                    dot={cat === key ? "bg-secondary" : "bg-g-mid"}
+                    onClick={() => setCat(key)}
+                  />
+                );
+              })}
             </ul>
-          </div>
 
-          <div className="border-t border-g-mid" />
-
-          <div className="px-1">
-            <p className="eyebrow mb-3 px-2">Uso de tokens</p>
-            <div className="mb-1.5 flex justify-between px-2 text-xs">
-              <span className="text-g-dark">Este mes</span>
-              <span className="font-semibold text-primary">1.2M / 5M</span>
-            </div>
-            <div className="mx-2 h-1.5 rounded-full bg-g-mid">
-              <div className="h-1.5 rounded-full bg-secondary transition-all duration-1000" style={{ width: "24%" }} />
-            </div>
-            <p className="mt-2 px-2 text-xs text-g-dark">24% utilizado · reinicia en 12 días</p>
-          </div>
-
-          <div className="border-t border-g-mid" />
-
-          <div className="space-y-3 px-3">
-            <QuickStat label="Agentes activos" value={String(enabledCount)} />
-            <QuickStat label="Consultas hoy" value="247" />
-            <QuickStat label="Tiempo promedio" value="1.8 s" />
-            <QuickStat label="Disponibilidad" value="99.8%" valueClass="text-ok" />
+            {/* Add new category — admins only */}
+            {isAdmin && (
+              <div className="mt-2 px-1">
+                {showNewCat ? (
+                  <div className="rounded-xl border border-g-mid bg-g-light p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-primary">Nueva categoría</span>
+                      <button onClick={() => { setShowNewCat(false); setNewCatName(""); setNewCatIcon(""); }} className="text-g-dark hover:text-primary">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <input
+                      autoFocus
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") void handleCreateCategory(); if (e.key === "Escape") setShowNewCat(false); }}
+                      placeholder="Nombre de categoría"
+                      className="w-full rounded-lg border border-g-mid bg-white px-2.5 py-1.5 text-xs text-primary placeholder-g-dark focus:border-secondary focus:outline-none focus:ring-1 focus:ring-secondary/20"
+                    />
+                    <input
+                      value={newCatIcon}
+                      onChange={(e) => setNewCatIcon(e.target.value)}
+                      placeholder="Emoji (opcional)"
+                      className="w-full rounded-lg border border-g-mid bg-white px-2.5 py-1.5 text-xs text-primary placeholder-g-dark focus:border-secondary focus:outline-none focus:ring-1 focus:ring-secondary/20"
+                    />
+                    <button
+                      onClick={() => void handleCreateCategory()}
+                      disabled={savingCat || !newCatName.trim()}
+                      className="w-full rounded-lg bg-secondary px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      {savingCat ? "Guardando…" : "Crear"}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowNewCat(true)}
+                    className="flex w-full items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-g-dark transition-colors hover:bg-g-light hover:text-primary"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Nueva categoría
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </aside>
@@ -106,9 +189,9 @@ export function MarketplacePage() {
         <div className="border-b border-g-mid bg-white px-4 py-4 sm:px-6">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <StatCard icon={<Boxes className="h-5 w-5 text-secondary" />} tint="bg-secondary/10" value={String(enabledCount)} label="Agentes habilitados" />
-            <StatCard icon={<MessageSquareText className="h-5 w-5 text-tertiary" />} tint="bg-tertiary/10" value="247" label="Consultas hoy" />
-            <StatCard icon={<Zap className="h-5 w-5 text-primary" />} tint="bg-primary/10" value="1.2M" label="Tokens consumidos" />
-            <StatCard icon={<CircleCheck className="h-5 w-5 text-ok" />} tint="bg-ok/10" value="99.8%" label="Disponibilidad" />
+            <StatCard icon={<MessageSquareText className="h-5 w-5 text-tertiary" />} tint="bg-tertiary/10" value={String(agents.length)} label="Agentes disponibles" />
+            <StatCard icon={<Zap className="h-5 w-5 text-primary" />} tint="bg-primary/10" value={String(backendCats.length || "—")} label="Categorías" />
+            <StatCard icon={<CircleCheck className="h-5 w-5 text-ok" />} tint="bg-ok/10" value={`${agents.length > 0 ? Math.round((enabledCount / agents.length) * 100) : 0}%`} label="Habilitados" />
           </div>
         </div>
 
@@ -184,15 +267,6 @@ function CatBtn({ label, count, active, dot, onClick }: { label: string; count: 
         <span className="ml-auto rounded-full bg-g-light px-2 py-0.5 text-xs text-g-dark">{count}</span>
       </button>
     </li>
-  );
-}
-
-function QuickStat({ label, value, valueClass = "text-primary" }: { label: string; value: string; valueClass?: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-g-dark">{label}</span>
-      <span className={"text-xs font-semibold " + valueClass}>{value}</span>
-    </div>
   );
 }
 

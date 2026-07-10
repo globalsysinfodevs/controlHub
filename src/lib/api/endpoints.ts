@@ -452,9 +452,14 @@ export interface AgentQuery {
   tenant_id?: string;
 }
 
+export interface AgentCategoryEntry { id: string; name: string; slug?: string; icon?: string | null; created_at?: string; }
+
 export const agentsApi = {
   /** GET /api/v1/agents/categories */
   categories: () => api.get<unknown[]>("/agents/categories"),
+  /** POST /api/v1/agents/categories — super admin only */
+  createCategory: (body: { name: string; icon?: string }) =>
+    api.post<unknown>("/agents/categories", body),
   /** GET /api/v1/agents — backend accepts no query params on this endpoint */
   list: (_q: AgentQuery = {}) =>
     api.get<unknown[]>("/agents"),
