@@ -4,11 +4,11 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SUB_TABS: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
-  { to: "/platform",            label: "Resumen",       icon: Gauge,     end: true },
+  { to: "/platform",            label: "Resumen",    icon: Gauge,    end: true },
   { to: "/platform/tenants",    label: "Tenants",    icon: Building2           },
-  { to: "/platform/users",      label: "Usuarios",      icon: Users               },
-  { to: "/platform/industries", label: "Industrias",    icon: Layers              },
-  { to: "/platform/config",     label: "Configuración", icon: Settings2           },
+  { to: "/platform/users",      label: "Usuarios",   icon: Users               },
+  { to: "/platform/industries", label: "Industrias", icon: Layers              },
+  // { to: "/platform/config", label: "Configuración", icon: Settings2 }, // hidden
 ];
 
 /** Shared shell for the super-admin platform console: a secondary tab bar + page outlet. */

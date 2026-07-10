@@ -16,7 +16,7 @@ const PLATFORM_TAB = { to: "/platform", label: "Plataforma" };
 const BASE_TABS = [
   { to: "/marketplace", label: "Marketplace" },
   { to: "/analytics", label: "Analytics" },
-  { to: "/config", label: "Configuración" },
+  // { to: "/config", label: "Configuración" }, // hidden
 ];
 
 export function TopNav() {
