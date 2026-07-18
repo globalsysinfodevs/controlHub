@@ -14,7 +14,7 @@ const STATUS_TONE = {
 } as const;
 
 export function AgentCard({ agent, onOpen, index = 0 }: { agent: Agent; onOpen: () => void; index?: number }) {
-  const cat = CATEGORY_META[agent.category];
+  const cat = CATEGORY_META[agent.category ?? "automation"];
   return (
     <motion.button
       onClick={onOpen}
@@ -87,7 +87,7 @@ export function AgentRow({ agent }: { agent: Agent }) {
       <Sigil seed={agent.id} name={agent.name} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-ink">{agent.name}</p>
-        <p className="text-2xs text-ink-faint">{CATEGORY_META[agent.category].label}</p>
+        <p className="text-2xs text-ink-faint">{CATEGORY_META[agent.category ?? "automation"].label}</p>
       </div>
       <StatusDot tone={agent.status === "active" ? "ok" : "neutral"} />
     </Link>

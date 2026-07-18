@@ -152,7 +152,7 @@ export function AnalyticsPage() {
       const tokens = Math.round(42000 * wave * weekend + 9000);
       series.push({ d: `${i}`, tokens, consultas: Math.round(tokens / 280) });
     }
-    const ranked = agents.filter((a) => a.enabled && a.queries > 0).sort((a, b) => b.queries - a.queries);
+    const ranked = agents.filter((a) => (a.enabled ?? true) && (a.queries ?? 0) > 0).sort((a, b) => (b.queries ?? 0) - (a.queries ?? 0));
     return {
       kpis: {
         tokens: "1.24M", tokensDelta: "+12% vs mes anterior", tokensUp: true,
@@ -161,9 +161,9 @@ export function AnalyticsPage() {
         latency: "1.76s", latencyDelta: "−0.3s vs mes anterior", latencyUp: true,
       },
       series,
-      donut: ranked.slice(0, 5).map((a, i) => ({ name: a.name, value: parseInt(a.tokens) || 50, color: DONUT_COLORS[i % DONUT_COLORS.length] })),
-      queriesRows: ranked.map((a) => ({ icon: a.icon, name: a.name, queries: a.queries })),
-      latencyRows: ranked.map((a) => ({ icon: a.icon, name: a.name, latency_ms: (parseFloat(a.latency) || 0) * 1000 })),
+      donut: ranked.slice(0, 5).map((a, i) => ({ name: a.name, value: parseInt(a.tokens ?? "0") || 50, color: DONUT_COLORS[i % DONUT_COLORS.length] })),
+      queriesRows: ranked.map((a) => ({ icon: a.icon ?? "🤖", name: a.name, queries: a.queries ?? 0 })),
+      latencyRows: ranked.map((a) => ({ icon: a.icon ?? "🤖", name: a.name, latency_ms: (parseFloat(a.latency ?? "0") || 0) * 1000 })),
     };
   }, [agents, days]);
 

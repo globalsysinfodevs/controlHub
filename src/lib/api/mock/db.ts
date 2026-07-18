@@ -71,8 +71,29 @@ const SYSTEM_PROMPT = `You are a specialist assistant for Alestra Telecom.
 Be precise, cite data sources, and never expose subscriber PII in plain text.
 When you are uncertain, say so and propose the safest next step.`;
 
+/** Shared defaults for required Agent fields not used by mock data. */
+const AGENT_DEFAULTS = {
+  assistant_name: null,
+  category_id: null,
+  category_name: null,
+  is_global: false,
+  is_released: true,
+  tenant_id: null,
+  template_key: "",
+  model_id: null,
+  model_name: null,
+  capabilities: [] as string[],
+  example_questions: [] as string[],
+  enabled: true,
+  behavior_prompt: null,
+  language: null,
+  response_style: null,
+  monthly_token_limit: null,
+} as const;
+
 export const agents: Agent[] = [
   {
+    ...AGENT_DEFAULTS,
     id: "agt_support",
     name: "Care Copilot",
     description: "Resolves Tier-1 subscriber tickets with billing + CRM context and policy-grounded answers.",
@@ -94,6 +115,7 @@ export const agents: Agent[] = [
     created_at: isoDaysAgo(160),
   },
   {
+    ...AGENT_DEFAULTS,
     id: "agt_analyst",
     name: "Revenue Analyst",
     description: "Answers executive questions over the billing warehouse and renders charts and tables.",
@@ -115,6 +137,7 @@ export const agents: Agent[] = [
     created_at: isoDaysAgo(178),
   },
   {
+    ...AGENT_DEFAULTS,
     id: "agt_incident",
     name: "Incident Commander",
     description: "Correlates NOC alarms, drafts runbooks, and opens tickets during network incidents.",
@@ -136,6 +159,7 @@ export const agents: Agent[] = [
     created_at: isoDaysAgo(88),
   },
   {
+    ...AGENT_DEFAULTS,
     id: "agt_kb",
     name: "Policy Librarian",
     description: "Grounded Q&A over runbooks, SLAs, and internal policy documents with citations.",
@@ -157,6 +181,7 @@ export const agents: Agent[] = [
     created_at: isoDaysAgo(70),
   },
   {
+    ...AGENT_DEFAULTS,
     id: "agt_sql",
     name: "Query Builder",
     description: "Translates natural language into safe, read-only SQL against the warehouse.",
@@ -178,6 +203,7 @@ export const agents: Agent[] = [
     created_at: isoDaysAgo(140),
   },
   {
+    ...AGENT_DEFAULTS,
     id: "agt_research",
     name: "Market Scout",
     description: "Tracks competitor moves and telecom market signals from the public web.",
@@ -231,7 +257,7 @@ function buildAudit(): AuditEntry[] {
       id: `aud_${1000 + i}`,
       user_name: u.name,
       agent_name: a.name,
-      model: a.model,
+      model: a.model ?? "",
       tokens: 400 + ((i * 977) % 5200),
       status: statuses[(i * 7) % statuses.length],
       latency_ms: 600 + ((i * 311) % 4200),
@@ -267,9 +293,9 @@ export function dashboardSummary(range: 7 | 30 | 90): DashboardSummary {
     .filter((a) => a.tokens_30d > 0)
     .sort((a, b) => b.tokens_30d - a.tokens_30d)
     .slice(0, 5)
-    .map((a) => ({ id: a.id, name: a.name, tokens: a.tokens_30d, category: a.category }));
+    .map((a) => ({ id: a.id, name: a.name, tokens: a.tokens_30d, category: a.category ?? "automation" as const }));
   const modelMap = new Map<string, number>();
-  for (const a of agents) modelMap.set(a.model, (modelMap.get(a.model) ?? 0) + a.tokens_30d);
+  for (const a of agents) { const m = a.model ?? ""; modelMap.set(m, (modelMap.get(m) ?? 0) + a.tokens_30d); }
   return {
     tokens_used: tokensUsed,
     tokens_limit: tenant.monthly_token_limit,
