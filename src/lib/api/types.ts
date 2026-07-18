@@ -72,36 +72,43 @@ export interface Tenant {
   monthly_token_limit: number;
 }
 
-export type AgentCategory =
-  | "support"
-  | "analytics"
-  | "knowledge"
-  | "automation"
-  | "coding"
-  | "research";
-
 export type OutputType = "text" | "markdown" | "json" | "table" | "chart";
 
+/** Mirrors backend AgentOut schema (app/modules/agents/schemas.py). */
 export interface Agent {
   id: string;
   name: string;
-  description: string;
-  category: AgentCategory;
+  /** Effective assistant display name (deployment override → agent default → "Orion") */
+  assistant_name: string | null;
+  description: string | null;
+  category_id: string | null;
+  category_name: string | null;
   status: "active" | "inactive" | "draft";
-  model: string;
-  system_prompt: string;
+  is_global: boolean;
+  is_released: boolean;
+  tenant_id: string | null;
+  template_key: string;
+  model_id: string | null;
+  model_name: string | null;
+  output_types: string[];
+  capabilities: string[];
+  example_questions: string[];
   tools: string[];
-  output_types: OutputType[];
-  group_ids: string[];
-  version: number;
-  temperature: number;
+  /** Whether this agent is enabled for the calling tenant */
+  enabled: boolean;
+  behavior_prompt: string | null;
+  language: string | null;
+  response_style: string | null;
+  temperature: number | null;
+  /** Per-agent monthly token budget set by admin (null = no agent-level cap) */
+  monthly_token_limit: number | null;
+  /** Current-month token usage (Redis-cached, 1h TTL) */
   tokens_30d: number;
   invocations_30d: number;
   avg_latency_ms: number;
   success_rate: number;
-  created_by: string;
-  updated_at: string;
-  created_at: string;
+  version: number;
+  updated_at: string | null;
 }
 
 export interface Group {

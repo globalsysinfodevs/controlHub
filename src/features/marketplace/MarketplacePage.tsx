@@ -5,7 +5,7 @@ import { useMarket } from "@/store/marketplace";
 import { useAuth, isSuperAdmin } from "@/store/auth";
 import { agentsApi, dashboardApi } from "@/lib/api/endpoints";
 import { toast } from "@/components/ui/Toast";
-import { CATEGORIES, CAT_LABEL, type CatalogAgent } from "./data";
+import type { Agent } from "@/lib/api/types";
 import { MarketAgentCard } from "./MarketAgentCard";
 import { DetailPanel } from "./DetailPanel";
 
@@ -13,7 +13,6 @@ const STATUS = [
   { key: "all", label: "All" },
   { key: "enabled", label: "Enabled" },
   { key: "disabled", label: "Available" },
-  { key: "new", label: "✨ New" },
 ];
 
 interface BackendCategory { id: string; name: string; slug?: string; icon?: string | null; }
@@ -67,57 +66,45 @@ export function MarketplacePage() {
 
   const enabledCount = agents.filter((a) => a.enabled).length;
 
-  // Merge backend categories with the local CATEGORIES list so the sidebar
-  // always shows something even before the backend responds.
-  // Backend categories are matched to local keys by slug/name for correct filtering.
+  // Use backend categories directly; fall back to names derived from agent list.
   const allCats: BackendCategory[] = useMemo(() => {
-    if (backendCats.length > 0) {
-      // Map backend categories to local keys where possible
-      return backendCats.map((bc) => {
-        const slug = bc.slug ?? bc.name;
-        // Try to find a matching local category
-        const local = CATEGORIES.find(
-          (lc) =>
-            lc.key.toLowerCase() === slug.toLowerCase() ||
-            lc.label.toLowerCase() === bc.name.toLowerCase() ||
-            lc.key.toLowerCase() === bc.name.toLowerCase()
-        );
-        return local
-          ? { ...bc, slug: local.key, name: local.label }
-          : bc;
-      });
+    if (backendCats.length > 0) return backendCats;
+    // Derive unique category names from the loaded agent list as fallback
+    const seen = new Set<string>();
+    const derived: BackendCategory[] = [];
+    for (const a of agents as Agent[]) {
+      const name = a.category_name ?? "";
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        derived.push({ id: a.category_id ?? name, name, slug: name });
+      }
     }
-    return CATEGORIES.map((c) => ({ id: c.key, name: c.label, slug: c.key }));
-  }, [backendCats]);
+    return derived;
+  }, [backendCats, agents]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: agents.length };
     for (const a of agents) {
-      if (a.cat) c[a.cat] = (c[a.cat] ?? 0) + 1;
-      const slug = (a as unknown as { category?: string }).category;
-      if (slug) c[slug] = (c[slug] ?? 0) + 1;
+      const key = a.category_name ?? "";
+      if (key) c[key] = (c[key] ?? 0) + 1;
     }
     return c;
   }, [agents]);
 
   const visible = useMemo(() => {
-    let list = agents.filter((a) => {
-      if (cat !== "all") {
-        const agentCat = a.cat ?? (a as unknown as { category?: string }).category ?? "";
-        if (agentCat !== cat) return false;
-      }
+    let list = (agents as Agent[]).filter((a) => {
+      if (cat !== "all" && (a.category_name ?? "") !== cat) return false;
       if (status === "enabled" && !a.enabled) return false;
       if (status === "disabled" && a.enabled) return false;
-      if (status === "new" && !a.isNew) return false;
-      if (search && !(a.name + a.desc).toLowerCase().includes(search.toLowerCase())) return false;
+      if (search && !(a.name + (a.description ?? "")).toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-    if (sort === "used") list = [...list].sort((a, b) => b.queries - a.queries);
+    if (sort === "used") list = [...list].sort((a, b) => b.invocations_30d - a.invocations_30d);
     else if (sort === "az") list = [...list].sort((a, b) => a.name.localeCompare(b.name));
     return list;
   }, [agents, cat, status, search, sort]);
 
-  function handleToggle(a: CatalogAgent) {
+  function handleToggle(a: Agent) {
     const now = toggle(a.id);
     toast.success(now ? "Agent enabled" : "Agent disabled", a.name);
   }
@@ -139,7 +126,7 @@ export function MarketplacePage() {
     }
   }
 
-  const detail = agents.find((a) => a.id === detailId) ?? null;
+  const detail = (agents as Agent[]).find((a) => a.id === detailId) ?? null;
 
   // Derived sidebar stats from backend
   const tokensUsed = summary?.tokens_used ?? 0;
@@ -166,11 +153,10 @@ export function MarketplacePage() {
               <CatBtn label="All" count={counts.all} active={cat === "all"} dot="bg-secondary" onClick={() => setCat("all")} />
               {allCats.map((c) => {
                 const key = c.slug ?? c.name;
-                const label = CAT_LABEL[key] ?? CAT_LABEL[c.name] ?? c.name;
                 return (
                   <CatBtn
                     key={c.id}
-                    label={label}
+                    label={c.name}
                     count={counts[key] ?? counts[c.name] ?? 0}
                     active={cat === key}
                     dot={cat === key ? "bg-secondary" : "bg-g-mid"}

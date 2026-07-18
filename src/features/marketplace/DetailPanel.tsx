@@ -4,24 +4,39 @@ import { Check, MessageSquare, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toggle } from "@/components/ui/Toggle";
 import { useChat } from "@/store/chat";
-import { CAT_ACCENT, CAT_LABEL, type Accent, type CatalogAgent } from "./data";
+import type { Agent } from "@/lib/api/types";
 
-const ACCENT_TILE: Record<Accent, string> = {
-  secondary: "linear-gradient(135deg,rgba(0,184,255,.18),rgba(0,184,255,.05))",
-  tertiary: "linear-gradient(135deg,rgba(158,0,190,.18),rgba(158,0,190,.05))",
-  primary: "linear-gradient(135deg,rgba(26,33,81,.16),rgba(26,33,81,.04))",
-};
+/** Format a raw token count into a human-readable string. */
+function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
+  return String(n);
+}
+
+function fmtLatency(ms: number): string {
+  if (ms === 0) return "—";
+  return ms >= 1000 ? (ms / 1000).toFixed(1) + " s" : ms.toFixed(0) + " ms";
+}
 
 export function DetailPanel({
   agent,
   onClose,
   onToggle,
 }: {
-  agent: CatalogAgent | null;
+  agent: Agent | null;
   onClose: () => void;
   onToggle: () => void;
 }) {
   const openChat = useChat((s) => s.open);
+
+  const categoryLabel = agent?.category_name ?? "General";
+  const modelLabel = agent ? (agent.model_name ?? agent.template_key) : "";
+
+  // Token budget progress
+  const tokenPct =
+    agent?.monthly_token_limit && agent.monthly_token_limit > 0
+      ? Math.min(100, Math.round((agent.tokens_30d / agent.monthly_token_limit) * 100))
+      : null;
 
   return createPortal(
     <AnimatePresence>
@@ -44,23 +59,20 @@ export function DetailPanel({
             {/* Header */}
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-g-mid bg-white px-6 py-4">
               <div className="flex items-center gap-3">
-                <div
-                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl"
-                  style={{ background: ACCENT_TILE[CAT_ACCENT[agent.cat]] }}
-                >
-                  <span className="text-xl">{agent.icon}</span>
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-secondary/10">
+                  <span className="text-xl">🤖</span>
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-primary">{agent.name}</h2>
                   <p className="text-xs text-g-dark">
-                    {CAT_LABEL[agent.cat]} · {agent.model}
+                    {categoryLabel} · {modelLabel}
                   </p>
                 </div>
               </div>
               <button
                 onClick={onClose}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-g-light text-g-dark transition-colors hover:bg-g-mid"
-                aria-label="Cerrar"
+                aria-label="Close"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -69,52 +81,59 @@ export function DetailPanel({
             {/* Body */}
             <div className="flex-1 overflow-y-auto">
               <div className="space-y-6 p-6">
+                {/* Enable / disable toggle */}
                 <div className="flex items-center justify-between rounded-2xl bg-g-light p-4">
                   <div>
                     <p className="text-sm font-semibold text-primary">
-                      {agent.enabled ? "Habilitado" : "Disponible"}
+                      {agent.enabled ? "Enabled" : "Available"}
                     </p>
                     <p className="text-xs text-g-dark">
-                      {agent.enabled ? "Activo desde 14 enero, 2025" : "Actívalo para empezar a usarlo"}
+                      {agent.enabled ? "Active for this tenant" : "Activate to start using"}
                     </p>
                   </div>
                   <Toggle checked={agent.enabled} onChange={onToggle} />
                 </div>
 
-                <Section title="Descripción">
-                  <p className="text-sm leading-relaxed text-primary">{agent.desc}</p>
-                </Section>
+                {agent.description && (
+                  <Section title="Description">
+                    <p className="text-sm leading-relaxed text-primary">{agent.description}</p>
+                  </Section>
+                )}
 
-                <Section title="Capacidades">
-                  <ul className="space-y-2">
-                    {agent.caps.map((c) => (
-                      <li key={c} className="flex items-start gap-2.5 text-sm text-primary">
-                        <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-secondary/15 text-secondary-600">
-                          <Check className="h-2.5 w-2.5" />
+                {agent.capabilities.length > 0 && (
+                  <Section title="Capabilities">
+                    <ul className="space-y-2">
+                      {agent.capabilities.map((c) => (
+                        <li key={c} className="flex items-start gap-2.5 text-sm text-primary">
+                          <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-secondary/15 text-secondary-600">
+                            <Check className="h-2.5 w-2.5" />
+                          </span>
+                          {c}
+                        </li>
+                      ))}
+                    </ul>
+                  </Section>
+                )}
+
+                {agent.tools.length > 0 && (
+                  <Section title="Tools">
+                    <div className="flex flex-wrap gap-2">
+                      {agent.tools.map((t) => (
+                        <span key={t} className="rounded-lg bg-g-light px-2.5 py-1 text-xs text-g-dark">
+                          {t}
                         </span>
-                        {c}
-                      </li>
-                    ))}
-                  </ul>
-                </Section>
+                      ))}
+                    </div>
+                  </Section>
+                )}
 
-                <Section title="Herramientas">
-                  <div className="flex flex-wrap gap-2">
-                    {agent.tools.map((t) => (
-                      <span key={t} className="rounded-lg bg-g-light px-2.5 py-1 text-xs text-g-dark">
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                </Section>
-
-                {agent.prompts.length > 0 && (
-                  <Section title="Preguntas de ejemplo">
+                {agent.example_questions.length > 0 && (
+                  <Section title="Example questions">
                     <div className="space-y-2">
-                      {agent.prompts.map((p) => (
+                      {agent.example_questions.map((p) => (
                         <button
                           key={p}
-                          onClick={() => openChat(agent)}
+                          onClick={() => openChat(agent as unknown as Parameters<typeof openChat>[0])}
                           className="w-full rounded-xl bg-g-light px-3 py-2.5 text-left text-sm text-primary transition-colors hover:bg-g-mid"
                         >
                           {p}
@@ -124,29 +143,50 @@ export function DetailPanel({
                   </Section>
                 )}
 
-                {agent.collab.length > 0 && (
-                  <Section title="Colabora con">
-                    <div className="flex flex-wrap gap-2">
-                      {agent.collab.map((c) => (
-                        <span
-                          key={c.name}
-                          className="flex items-center gap-1.5 rounded-lg border border-g-mid bg-white px-2.5 py-1 text-xs text-primary"
-                        >
-                          <span>{c.icon}</span>
-                          {c.name}
-                        </span>
-                      ))}
-                    </div>
-                  </Section>
-                )}
-
+                {/* Usage stats */}
                 <div className="rounded-2xl bg-g-light p-4">
-                  <p className="eyebrow mb-3">Uso este mes</p>
+                  <p className="eyebrow mb-3">Usage this month</p>
                   <div className="grid grid-cols-3 gap-3 text-center">
-                    <Usage value={agent.queries ? String(agent.queries) : "—"} label="Consultas" />
-                    <Usage value={agent.tokens} label="Tokens" />
-                    <Usage value={agent.latency} label="Latencia" />
+                    <Usage
+                      value={agent.invocations_30d > 0 ? String(agent.invocations_30d) : "—"}
+                      label="Queries"
+                    />
+                    <Usage
+                      value={agent.tokens_30d > 0 ? fmtTokens(agent.tokens_30d) : "—"}
+                      label="Tokens"
+                    />
+                    <Usage value={fmtLatency(agent.avg_latency_ms)} label="Latency" />
                   </div>
+
+                  {/* Per-agent token budget bar */}
+                  {tokenPct !== null && (
+                    <div className="mt-4">
+                      <div className="mb-1 flex justify-between text-xs">
+                        <span className="text-g-dark">Monthly token budget</span>
+                        <span className="font-semibold text-primary">
+                          {fmtTokens(agent.tokens_30d)} / {fmtTokens(agent.monthly_token_limit!)}
+                          <span className="ml-1 text-g-dark">({tokenPct}%)</span>
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-g-mid">
+                        <div
+                          className={cn(
+                            "h-1.5 rounded-full transition-all duration-700",
+                            tokenPct >= 95 ? "bg-error" : tokenPct >= 80 ? "bg-warning" : "bg-secondary"
+                          )}
+                          style={{ width: `${tokenPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Success rate */}
+                  {agent.success_rate > 0 && (
+                    <p className="mt-3 text-center text-xs text-g-dark">
+                      Success rate:{" "}
+                      <span className="font-semibold text-ok">{agent.success_rate.toFixed(1)}%</span>
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -154,14 +194,14 @@ export function DetailPanel({
             {/* Footer */}
             <div className="border-t border-g-mid bg-white px-6 py-4">
               <button
-                onClick={() => openChat(agent)}
+                onClick={() => openChat(agent as unknown as Parameters<typeof openChat>[0])}
                 className={cn(
                   "flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-semibold text-white transition-all hover:shadow-lg",
                   "bg-primary hover:bg-primary-600"
                 )}
               >
                 <MessageSquare className="h-[15px] w-[15px]" />
-                Abrir chat con este agente
+                Open chat with this agent
               </button>
             </div>
           </motion.aside>

@@ -436,7 +436,17 @@ export interface AgentUpdate {
   status?: "active" | "inactive" | "draft";
 }
 export interface ToggleRequest { enabled: boolean; }
-export interface DeploymentUpdate { tenant_ids?: string[]; all_tenants?: boolean; }
+export interface DeploymentUpdate {
+  llm_model_id?: string | null;
+  behavior_prompt?: string | null;
+  language?: string | null;
+  response_style?: "formal" | "casual" | "technical" | "concise" | null;
+  temperature?: number | null;
+  max_tokens?: number | null;
+  status?: "active" | "inactive" | null;
+  /** Tenant admin may only set this <= tenant.monthly_token_limit */
+  monthly_token_limit?: number | null;
+}
 
 export interface AgentQuery {
   page?: number;
@@ -460,9 +470,16 @@ export const agentsApi = {
   /** POST /api/v1/agents/categories — super admin only */
   createCategory: (body: { name: string; icon?: string }) =>
     api.post<unknown>("/agents/categories", body),
-  /** GET /api/v1/agents — backend accepts no query params on this endpoint */
-  list: (_q: AgentQuery = {}) =>
-    api.get<unknown[]>("/agents"),
+  /** GET /api/v1/agents — supports search and category_id query params */
+  list: (q: AgentQuery = {}) => {
+    const params: Record<string, unknown> = {};
+    if (q.page) params.page = q.page;
+    if (q.page_size) params.page_size = q.page_size;
+    if (q.search) params.search = q.search;
+    if (q.category_id) params.category_id = q.category_id;
+    if (q.tenant_id) params.tenant_id = q.tenant_id;
+    return api.get<unknown[]>("/agents", params);
+  },
   /** GET /api/v1/agents/{agent_id} */
   get: (id: string) => api.get<unknown>(`/agents/${id}`),
   /** POST /api/v1/agents — super admin only */
@@ -1086,4 +1103,5 @@ export const groupsApiLive = groupsApi;
 export const marketplaceApi = {
   list: () => agentsApi.list({ page_size: 100 }) as Promise<Agent[]>,
   toggle: (id: string, enabled: boolean) => agentsApi.toggle(id, enabled),
+  updateDeployment: (id: string, body: DeploymentUpdate) => agentsApi.updateDeployment(id, body),
 };
