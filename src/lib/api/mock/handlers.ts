@@ -334,6 +334,23 @@ export async function mockRequest(
       created_by: db.currentUser.id,
       updated_at: now,
       created_at: now,
+      // Required fields from the Agent interface
+      assistant_name: null,
+      category_id: null,
+      category_name: null,
+      is_global: false,
+      is_released: false,
+      tenant_id: null,
+      template_key: "",
+      model_id: null,
+      model_name: null,
+      capabilities: [],
+      example_questions: [],
+      enabled: true,
+      behavior_prompt: null,
+      language: null,
+      response_style: null,
+      monthly_token_limit: null,
     };
     db.agents.unshift(agent);
     persistAgents();

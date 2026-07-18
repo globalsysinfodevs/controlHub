@@ -472,7 +472,7 @@ export const agentsApi = {
     api.post<unknown>("/agents/categories", body),
   /** GET /api/v1/agents — supports search and category_id query params */
   list: (q: AgentQuery = {}) => {
-    const params: Record<string, unknown> = {};
+    const params: Record<string, string | number | undefined> = {};
     if (q.page) params.page = q.page;
     if (q.page_size) params.page_size = q.page_size;
     if (q.search) params.search = q.search;

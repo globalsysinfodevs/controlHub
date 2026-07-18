@@ -74,6 +74,15 @@ export interface Tenant {
 
 export type OutputType = "text" | "markdown" | "json" | "table" | "chart";
 
+/** Legacy category slugs used by UI components and mock data. */
+export type AgentCategory =
+  | "support"
+  | "analytics"
+  | "knowledge"
+  | "automation"
+  | "coding"
+  | "research";
+
 /** Mirrors backend AgentOut schema (app/modules/agents/schemas.py). */
 export interface Agent {
   id: string;
@@ -109,6 +118,28 @@ export interface Agent {
   success_rate: number;
   version: number;
   updated_at: string | null;
+
+  // ── Legacy / mock fields (kept for UI compatibility) ──────────────────────
+  /** Legacy category slug (mock data / older backend versions). */
+  category?: AgentCategory;
+  /** Legacy model name shorthand (mock data / older backend versions). */
+  model?: string;
+  /** Emoji icon used in mock data. */
+  icon?: string;
+  /** System prompt text (mock data). */
+  system_prompt?: string;
+  /** 30-day query count (mock data). */
+  queries?: number;
+  /** Formatted token string (mock data). */
+  tokens?: string;
+  /** Formatted latency string (mock data). */
+  latency?: string;
+  /** Group IDs this agent belongs to (mock data). */
+  group_ids?: string[];
+  /** Creator user ID (mock data). */
+  created_by?: string;
+  /** Creation timestamp (mock data). */
+  created_at?: string;
 }
 
 export interface Group {
