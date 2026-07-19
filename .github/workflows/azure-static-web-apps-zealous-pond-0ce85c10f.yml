@@ -16,27 +16,43 @@ jobs:
     name: Build and Deploy Job
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
         with:
           submodules: true
           lfs: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build Vite App
         env:
           VITE_USE_MOCK: ${{ secrets.VITE_USE_MOCK }}
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
         run: npm run build
 
-      - name: Build And Deploy
+      # Debug step (temporary)
+      - name: Verify Build Output
+        run: |
+          echo "===== ROOT ====="
+          ls -la
+          echo ""
+          echo "===== DIST ====="
+          ls -la dist
+          echo ""
+          echo "===== DIST/ASSETS ====="
+          ls -la dist/assets
+          echo ""
+          echo "===== DIST INDEX ====="
+          cat dist/index.html
+
+      - name: Deploy to Azure Static Web Apps
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
@@ -44,10 +60,11 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
 
-          # Repository/Build Configurations
           app_location: "/"
           api_location: ""
           output_location: "dist"
+
+          # We already built the app above
           skip_app_build: true
 
   close_pull_request_job:
