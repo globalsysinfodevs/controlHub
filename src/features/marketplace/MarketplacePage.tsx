@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Boxes, CircleCheck, ChevronDown, ChevronRight, FileCode2, Plus, Search, Trash2, X, Zap, MessageSquareText } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMarket } from "@/store/marketplace";
 import { useAuth, isSuperAdmin } from "@/store/auth";
 import { agentsApi, dashboardApi } from "@/lib/api/endpoints";
@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/Toast";
 import type { Agent } from "@/lib/api/types";
 import { MarketAgentCard } from "./MarketAgentCard";
 import { DetailPanel } from "./DetailPanel";
+import { AgentFormDrawer } from "./AgentFormDrawer";
 
 const STATUS = [
   { key: "all", label: "All" },
@@ -58,6 +59,15 @@ export function MarketplacePage() {
 
   // ── Templates panel state ─────────────────────────────────────────────
   const [templatesOpen, setTemplatesOpen] = useState(false);
+
+  // ── Agent form drawer state (super admin) ─────────────────────────────
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"create" | "edit">("create");
+  const [editAgent, setEditAgent] = useState<Agent | null>(null);
+
+  // ── Delete agent state (super admin) ──────────────────────────────────
+  const [deleteAgentId, setDeleteAgentId] = useState<string | null>(null);
+  const [deleteAgentName, setDeleteAgentName] = useState("");
 
   // ── Fetch categories from backend ─────────────────────────────────────
   const { data: backendCats = [] } = useQuery<BackendCategory[]>({
@@ -155,6 +165,20 @@ export function MarketplacePage() {
       setSavingCat(false);
     }
   }
+
+  // ── Delete agent mutation (super admin) ───────────────────────────────
+  const deleteAgentMutation = useMutation({
+    mutationFn: (id: string) => agentsApi.remove(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["agents"] });
+      void qc.invalidateQueries({ queryKey: ["marketplace-agents"] });
+      void hydrate();
+      toast.success("Agent deleted", deleteAgentName);
+      setDeleteAgentId(null);
+      setDeleteAgentName("");
+    },
+    onError: (e) => toast.error("Could not delete agent", (e as Error).message),
+  });
 
   async function handleDeleteCategory(categoryId: string, categoryName: string) {
     setDeletingCatId(categoryId);
@@ -397,6 +421,16 @@ export function MarketplacePage() {
               <option value="used">Most used</option>
               <option value="az">A–Z</option>
             </select>
+            {/* New Agent button — super admin only */}
+            {isSA && (
+              <button
+                onClick={() => { setFormMode("create"); setEditAgent(null); setFormOpen(true); }}
+                className="flex items-center gap-1.5 rounded-xl bg-secondary px-4 py-2.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New agent
+              </button>
+            )}
           </div>
           <p className="mt-2.5 text-xs text-g-dark">
             Showing <span className="font-semibold text-primary">{visible.length}</span> agents
@@ -420,6 +454,8 @@ export function MarketplacePage() {
                   index={i}
                   onOpen={() => setDetailId(a.id)}
                   onToggle={() => handleToggle(a)}
+                  onEdit={isSA ? () => { setEditAgent(a); setFormMode("edit"); setFormOpen(true); } : undefined}
+                  onDelete={isSA ? () => { setDeleteAgentId(a.id); setDeleteAgentName(a.name); } : undefined}
                 />
               ))}
             </div>
@@ -428,6 +464,44 @@ export function MarketplacePage() {
       </main>
 
       <DetailPanel agent={detail} onClose={() => setDetailId(null)} onToggle={() => detail && handleToggle(detail)} />
+
+      {/* ── Agent create / edit drawer (super admin) ── */}
+      <AgentFormDrawer
+        open={formOpen}
+        mode={formMode}
+        agent={editAgent}
+        onClose={() => { setFormOpen(false); setEditAgent(null); void hydrate(); }}
+      />
+
+      {/* ── Delete agent confirmation overlay (super admin) ── */}
+      {deleteAgentId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-g-mid bg-white p-6 shadow-xl">
+            <h3 className="text-base font-semibold text-primary">Delete agent?</h3>
+            <p className="mt-1 text-sm text-g-dark">
+              <span className="font-semibold">"{deleteAgentName}"</span> will be permanently removed.
+              This cannot be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => { setDeleteAgentId(null); setDeleteAgentName(""); }}
+                disabled={deleteAgentMutation.isPending}
+                className="rounded-xl border border-g-mid bg-white px-4 py-2 text-sm text-g-dark transition-colors hover:bg-g-light disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteAgentMutation.mutate(deleteAgentId)}
+                disabled={deleteAgentMutation.isPending}
+                className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                {deleteAgentMutation.isPending ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

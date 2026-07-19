@@ -416,24 +416,35 @@ export interface AgentCreate {
   name: string;
   description?: string;
   category_id?: string;
-  model?: string;
-  system_prompt?: string;
-  tools?: string[];
-  output_types?: string[];
-  group_ids?: string[];
-  temperature?: number;
+  /** Template key from GET /agents/templates (e.g. "chat") */
+  template_key?: string;
+  base_system_prompt?: string;
+  /** UUID of the LLM model to use */
+  llm_model_id?: string;
+  /** Tool instance UUIDs to attach at creation */
+  tool_instance_ids?: string[];
+  status?: "active" | "inactive" | "draft";
+  is_global?: boolean;
+  /** Scope to a specific tenant (super admin only) */
+  tenant_id?: string;
 }
 export interface AgentUpdate {
   name?: string;
   description?: string;
   category_id?: string;
-  model?: string;
-  system_prompt?: string;
-  tools?: string[];
-  output_types?: string[];
-  group_ids?: string[];
-  temperature?: number;
+  template_key?: string;
+  base_system_prompt?: string;
+  llm_model_id?: string;
   status?: "active" | "inactive" | "draft";
+  /** Short summary of what changed (stored in version history) */
+  change_summary?: string;
+}
+export interface AgentReleaseRequest { is_released: boolean; }
+export interface AgentToolAssign { tool_instance_id: string; execution_order?: number; }
+export interface AgentToolConfigUpdate {
+  config?: Record<string, unknown>;
+  credentials?: Record<string, unknown>;
+  system_prompt?: string;
 }
 export interface ToggleRequest { enabled: boolean; }
 export interface DeploymentUpdate {
@@ -504,6 +515,21 @@ export const agentsApi = {
   /** POST /api/v1/agents/{agent_id}/rollback/{version_id} */
   rollback: (agentId: string, versionId: string) =>
     api.post<unknown>(`/agents/${agentId}/rollback/${versionId}`),
+  /** PATCH /api/v1/agents/{agent_id}/release — release/unrelease a global agent (super admin) */
+  release: (agentId: string, is_released: boolean) =>
+    api.patch<unknown>(`/agents/${agentId}/release`, { is_released } satisfies AgentReleaseRequest),
+  /** POST /api/v1/agents/{agent_id}/tools — assign a tool instance to an agent (super admin) */
+  assignTool: (agentId: string, body: AgentToolAssign) =>
+    api.post<unknown>(`/agents/${agentId}/tools`, body),
+  /** DELETE /api/v1/agents/{agent_id}/tools/{tool_instance_id} — remove tool from agent (super admin) */
+  removeTool: (agentId: string, toolInstanceId: string) =>
+    api.delete<null>(`/agents/${agentId}/tools/${toolInstanceId}`),
+  /** GET /api/v1/agents/{agent_id}/tools/{tool_instance_id}/config */
+  getToolConfig: (agentId: string, toolInstanceId: string) =>
+    api.get<unknown>(`/agents/${agentId}/tools/${toolInstanceId}/config`),
+  /** PUT /api/v1/agents/{agent_id}/tools/{tool_instance_id}/config */
+  updateToolConfig: (agentId: string, toolInstanceId: string, body: AgentToolConfigUpdate) =>
+    api.put<unknown>(`/agents/${agentId}/tools/${toolInstanceId}/config`, body),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

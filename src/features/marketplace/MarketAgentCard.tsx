@@ -1,4 +1,4 @@
-import { LayoutGrid } from "lucide-react";
+import { LayoutGrid, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toggle } from "@/components/ui/Toggle";
 import type { Agent } from "@/lib/api/types";
@@ -15,11 +15,17 @@ export function MarketAgentCard({
   index = 0,
   onOpen,
   onToggle,
+  onEdit,
+  onDelete,
 }: {
   agent: Agent;
   index?: number;
   onOpen: () => void;
   onToggle: () => void;
+  /** Super admin only — opens the edit drawer */
+  onEdit?: () => void;
+  /** Super admin only — triggers delete confirmation */
+  onDelete?: () => void;
 }) {
   const categoryLabel = agent.category_name ?? "General";
   const modelLabel = agent.model_name ?? agent.template_key;
@@ -97,7 +103,35 @@ export function MarketAgentCard({
           <LayoutGrid className="h-3 w-3" />
           {outputLabel}
         </span>
-        <span className="text-xs font-semibold text-secondary-600">{modelLabel}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-secondary-600">{modelLabel}</span>
+          {/* Super-admin action buttons */}
+          {(onEdit || onDelete) && (
+            <div
+              className="flex items-center gap-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {onEdit && (
+                <button
+                  onClick={onEdit}
+                  title="Edit agent"
+                  className="rounded p-1 text-g-dark transition-colors hover:bg-g-light hover:text-primary"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={onDelete}
+                  title="Delete agent"
+                  className="rounded p-1 text-g-dark transition-colors hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
