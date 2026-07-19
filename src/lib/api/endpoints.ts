@@ -470,6 +470,9 @@ export const agentsApi = {
   /** POST /api/v1/agents/categories — super admin only */
   createCategory: (body: { name: string; icon?: string }) =>
     api.post<unknown>("/agents/categories", body),
+  /** DELETE /api/v1/agents/categories/{category_id} — super admin only */
+  deleteCategory: (categoryId: string) =>
+    api.delete<string>(`/agents/categories/${categoryId}`),
   /** GET /api/v1/agents — supports search and category_id query params */
   list: (q: AgentQuery = {}) => {
     const params: Record<string, string | number | undefined> = {};

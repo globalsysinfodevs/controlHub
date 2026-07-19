@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Boxes, CircleCheck, Plus, Search, X, Zap, MessageSquareText } from "lucide-react";
+import { Boxes, CircleCheck, Plus, Search, Trash2, X, Zap, MessageSquareText } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMarket } from "@/store/marketplace";
 import { useAuth, isSuperAdmin } from "@/store/auth";
@@ -43,6 +43,10 @@ export function MarketplacePage() {
   const [newCatName, setNewCatName] = useState("");
   const [newCatIcon, setNewCatIcon] = useState("");
   const [savingCat, setSavingCat] = useState(false);
+
+  // ── Delete category state ─────────────────────────────────────────────
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
 
   // ── Fetch categories from backend ─────────────────────────────────────
   const { data: backendCats = [] } = useQuery<BackendCategory[]>({
@@ -126,6 +130,22 @@ export function MarketplacePage() {
     }
   }
 
+  async function handleDeleteCategory(categoryId: string, categoryName: string) {
+    setDeletingCatId(categoryId);
+    try {
+      await agentsApi.deleteCategory(categoryId);
+      toast.success("Category deleted", categoryName);
+      void qc.invalidateQueries({ queryKey: ["agent-categories"] });
+      // If the deleted category was selected, reset to "all"
+      if (cat === categoryName || cat === categoryId) setCat("all");
+    } catch (e) {
+      toast.error("Error deleting category", (e as Error).message);
+    } finally {
+      setDeletingCatId(null);
+      setConfirmDeleteId(null);
+    }
+  }
+
   const detail = (agents as Agent[]).find((a) => a.id === detailId) ?? null;
 
   // Derived sidebar stats from backend
@@ -161,6 +181,11 @@ export function MarketplacePage() {
                     active={cat === key}
                     dot={cat === key ? "bg-secondary" : "bg-g-mid"}
                     onClick={() => setCat(key)}
+                    onDelete={isSuperAdmin(user?.role) ? () => setConfirmDeleteId(c.id) : undefined}
+                    isDeleting={deletingCatId === c.id}
+                    confirmingDelete={confirmDeleteId === c.id}
+                    onConfirmDelete={() => void handleDeleteCategory(c.id, c.name)}
+                    onCancelDelete={() => setConfirmDeleteId(null)}
                   />
                 );
               })}
@@ -327,14 +352,65 @@ export function MarketplacePage() {
   );
 }
 
-function CatBtn({ label, count, active, dot, onClick }: { label: string; count: number; active: boolean; dot: string; onClick: () => void }) {
+interface CatBtnProps {
+  label: string;
+  count: number;
+  active: boolean;
+  dot: string;
+  onClick: () => void;
+  onDelete?: () => void;
+  isDeleting?: boolean;
+  confirmingDelete?: boolean;
+  onConfirmDelete?: () => void;
+  onCancelDelete?: () => void;
+}
+
+function CatBtn({ label, count, active, dot, onClick, onDelete, isDeleting, confirmingDelete, onConfirmDelete, onCancelDelete }: CatBtnProps) {
+  if (confirmingDelete) {
+    return (
+      <li>
+        <div className="mx-1 rounded-xl border border-red-200 bg-red-50 p-2.5 space-y-2">
+          <p className="text-xs font-semibold text-red-700 leading-snug">
+            Delete <span className="font-bold">"{label}"</span>?
+          </p>
+          <p className="text-xs text-red-500">This cannot be undone.</p>
+          <div className="flex gap-1.5">
+            <button
+              onClick={onCancelDelete}
+              disabled={isDeleting}
+              className="flex-1 rounded-lg border border-g-mid bg-white px-2 py-1 text-xs text-g-dark transition-colors hover:bg-g-light disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirmDelete}
+              disabled={isDeleting}
+              className="flex-1 rounded-lg bg-red-600 px-2 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {isDeleting ? "…" : "Delete"}
+            </button>
+          </div>
+        </div>
+      </li>
+    );
+  }
+
   return (
-    <li>
-      <button onClick={onClick} className={"cat-item" + (active ? " active" : "")}>
+    <li className="group relative">
+      <button onClick={onClick} className={"cat-item pr-7" + (active ? " active" : "")}>
         <span className={"h-2 w-2 flex-shrink-0 rounded-full " + dot} />
-        <span>{label}</span>
+        <span className="truncate">{label}</span>
         <span className="ml-auto rounded-full bg-g-light px-2 py-0.5 text-xs text-g-dark">{count}</span>
       </button>
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          title="Delete category"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-g-dark opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
     </li>
   );
 }
