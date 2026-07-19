@@ -473,6 +473,8 @@ export const agentsApi = {
   /** DELETE /api/v1/agents/categories/{category_id} — super admin only */
   deleteCategory: (categoryId: string) =>
     api.delete<string>(`/agents/categories/${categoryId}`),
+  /** GET /api/v1/agents/templates — list all agent templates (super admin) */
+  templates: () => api.get<unknown[]>("/agents/templates"),
   /** GET /api/v1/agents — supports search and category_id query params */
   list: (q: AgentQuery = {}) => {
     const params: Record<string, string | number | undefined> = {};

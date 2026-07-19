@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Boxes, CircleCheck, Plus, Search, Trash2, X, Zap, MessageSquareText } from "lucide-react";
+import { Boxes, CircleCheck, ChevronDown, ChevronRight, FileCode2, Plus, Search, Trash2, X, Zap, MessageSquareText } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMarket } from "@/store/marketplace";
 import { useAuth, isSuperAdmin } from "@/store/auth";
@@ -16,6 +16,14 @@ const STATUS = [
 ];
 
 interface BackendCategory { id: string; name: string; slug?: string; icon?: string | null; }
+interface AgentTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  version?: string | null;
+  tags?: string[] | null;
+}
 
 /** Format a raw token count into a human-readable string (e.g. 1_200_000 → "1.2M"). */
 function fmtTokens(n: number): string {
@@ -48,6 +56,9 @@ export function MarketplacePage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
 
+  // ── Templates panel state ─────────────────────────────────────────────
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+
   // ── Fetch categories from backend ─────────────────────────────────────
   const { data: backendCats = [] } = useQuery<BackendCategory[]>({
     queryKey: ["agent-categories"],
@@ -66,6 +77,21 @@ export function MarketplacePage() {
     queryKey: ["dashboard-summary", 30],
     queryFn: () => dashboardApi.summary(30),
     staleTime: 2 * 60 * 1000,
+  });
+
+  // ── Fetch agent templates (super admin only) ──────────────────────────
+  const isSA = isSuperAdmin(user?.role);
+  const { data: templates = [], isLoading: templatesLoading } = useQuery<AgentTemplate[]>({
+    queryKey: ["agent-templates"],
+    queryFn: async () => {
+      const res = await agentsApi.templates() as unknown;
+      if (Array.isArray(res)) return res as AgentTemplate[];
+      if (res && typeof res === "object" && "items" in (res as object))
+        return ((res as { items: AgentTemplate[] }).items) ?? [];
+      return [];
+    },
+    enabled: isSA,
+    staleTime: 10 * 60 * 1000,
   });
 
   const enabledCount = agents.filter((a) => a.enabled).length;
@@ -242,6 +268,60 @@ export function MarketplacePage() {
               </div>
             )}
           </div>
+
+          {/* Agent Templates — super admin only */}
+          {isSA && (
+            <>
+              <div className="border-t border-g-mid" />
+              <div>
+                <button
+                  onClick={() => setTemplatesOpen((o) => !o)}
+                  className="flex w-full items-center justify-between px-3 py-1"
+                >
+                  <p className="eyebrow">TEMPLATES</p>
+                  <span className="flex items-center gap-1 text-xs text-g-dark">
+                    <span className="rounded-full bg-g-light px-1.5 py-0.5 text-xs">{templates.length}</span>
+                    {templatesOpen
+                      ? <ChevronDown className="h-3.5 w-3.5" />
+                      : <ChevronRight className="h-3.5 w-3.5" />}
+                  </span>
+                </button>
+                {templatesOpen && (
+                  <ul className="mt-1 space-y-0.5">
+                    {templatesLoading && (
+                      <li className="px-3 py-2 text-xs text-g-dark animate-pulse">Loading…</li>
+                    )}
+                    {!templatesLoading && templates.length === 0 && (
+                      <li className="px-3 py-2 text-xs text-g-dark">No templates found.</li>
+                    )}
+                    {templates.map((t) => (
+                      <li key={t.id}>
+                        <div className="flex items-start gap-2 rounded-lg px-3 py-2 hover:bg-g-light">
+                          <FileCode2 className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-secondary" />
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium text-primary">{t.name}</p>
+                            {t.description && (
+                              <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-g-dark">{t.description}</p>
+                            )}
+                            {(t.category || t.version) && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {t.category && (
+                                  <span className="rounded-full bg-secondary/10 px-1.5 py-0.5 text-[10px] font-medium text-secondary">{t.category}</span>
+                                )}
+                                {t.version && (
+                                  <span className="rounded-full bg-g-light px-1.5 py-0.5 text-[10px] text-g-dark">v{t.version}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
 
           <div className="border-t border-g-mid" />
 
