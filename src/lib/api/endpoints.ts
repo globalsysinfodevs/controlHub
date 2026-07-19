@@ -582,7 +582,7 @@ export const analyticsApi = {
    */
   dashboard: (period: 7 | 30 | 90 = 30, tenant_id?: string | null) =>
     api.get<Record<string, unknown>>("/analytics/dashboard", {
-      period,
+      days: period,
       ...(tenant_id ? { tenant_id } : {}),
     }),
 
