@@ -82,15 +82,22 @@ export function MarketplacePage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // ── Super admin flag (must be declared before any query that uses it) ──
+  const isSA = isSuperAdmin(user?.role);
+
   // ── Fetch dashboard summary for sidebar stats ─────────────────────────
+  // Only tenant_admin / member roles have access to this endpoint.
+  // Super admins hit a 422 because the endpoint requires a tenant context.
+  // We guard it so the sidebar gracefully shows zeros for SA users.
   const { data: summary } = useQuery({
     queryKey: ["dashboard-summary", 30],
     queryFn: () => dashboardApi.summary(30),
+    enabled: !isSA,
     staleTime: 2 * 60 * 1000,
+    retry: false,
   });
 
   // ── Fetch agent templates (super admin only) ──────────────────────────
-  const isSA = isSuperAdmin(user?.role);
   const { data: templates = [], isLoading: templatesLoading } = useQuery<AgentTemplate[]>({
     queryKey: ["agent-templates"],
     queryFn: async () => {
