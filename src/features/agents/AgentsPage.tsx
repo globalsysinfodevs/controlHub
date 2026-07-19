@@ -45,7 +45,7 @@ export function AgentsPage() {
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: agents?.length ?? 0 };
-    for (const a of agents ?? []) c[a.category] = (c[a.category] ?? 0) + 1;
+    for (const a of agents ?? []) { const cat = a.category ?? "automation"; c[cat] = (c[cat] ?? 0) + 1; }
     return c;
   }, [agents]);
 

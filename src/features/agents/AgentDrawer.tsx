@@ -49,13 +49,13 @@ const EMPTY: Draft = {
 function toDraft(a: Agent): Draft {
   return {
     name: a.name,
-    description: a.description,
-    category: a.category,
-    model: a.model,
-    temperature: a.temperature,
-    system_prompt: a.system_prompt,
-    tools: a.tools,
-    output_types: a.output_types,
+    description: a.description ?? "",
+    category: a.category ?? "automation",
+    model: a.model ?? "claude-sonnet-4-6",
+    temperature: a.temperature ?? 0.3,
+    system_prompt: a.system_prompt ?? "",
+    tools: a.tools ?? [],
+    output_types: (a.output_types ?? []) as OutputType[],
     status: a.status,
   };
 }
@@ -174,7 +174,7 @@ export function AgentDrawer({
             )}
           </div>
           <p className="mt-1.5 font-mono text-xs text-ink-muted">{draft.model}</p>
-          {agent && <p className="text-2xs text-ink-faint">Updated {timeAgo(agent.updated_at)}</p>}
+          {agent && agent.updated_at && <p className="text-2xs text-ink-faint">Updated {timeAgo(agent.updated_at)}</p>}
         </div>
       </div>
 

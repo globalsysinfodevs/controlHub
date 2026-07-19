@@ -52,7 +52,7 @@ export function ChatPage() {
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           {agents?.map((a) => {
-            const cat = CATEGORY_META[a.category];
+            const cat = CATEGORY_META[a.category ?? "automation"];
             const on = a.id === active?.id;
             return (
               <button
@@ -89,7 +89,7 @@ function ChatThread({ agent }: { agent: Agent }) {
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef(false);
-  const cat = CATEGORY_META[agent.category];
+  const cat = CATEGORY_META[agent.category ?? "automation"];
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -135,7 +135,7 @@ function ChatThread({ agent }: { agent: Agent }) {
     }
   }
 
-  const suggestions = SUGGESTIONS[agent.category] ?? SUGGESTIONS.default;
+  const suggestions = SUGGESTIONS[agent.category ?? "default"] ?? SUGGESTIONS.default;
 
   return (
     <div className="panel flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -181,7 +181,7 @@ function ChatThread({ agent }: { agent: Agent }) {
               {agent.name} runs on {agent.model}. Try one of these:
             </p>
             <div className="mt-5 grid w-full gap-2 sm:grid-cols-2">
-              {suggestions.map((s) => (
+              {suggestions.map((s: string) => (
                 <button
                   key={s}
                   onClick={() => send(s)}
