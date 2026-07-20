@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Tenant, User, UserRole } from "@/lib/api/types";
-import { setAccessToken, setRefreshToken, clearTokens } from "@/lib/api/client";
+import { setAccessToken, setRefreshToken, clearTokens, getAccessToken } from "@/lib/api/client";
 import { authApi, tenantApi } from "@/lib/api/endpoints";
 
 interface AuthState {
@@ -269,8 +269,32 @@ export const useAuth = create<AuthState>()(
     }),
     {
       name: "ialestra.auth",
-      // Only persist the identity — tokens live in localStorage separately.
-      partialize: (s) => ({ user: s.user, tenant: s.tenant, status: s.status }),
+      /**
+       * Persist user + tenant identity only.
+       * status is intentionally NOT persisted — on every page load we derive it
+       * from whether a valid access token exists in localStorage.  This means:
+       *   • After logout (tokens cleared) → reopening the tab shows login.
+       *   • After a hard refresh while still logged in → token present → stays authenticated.
+       */
+      partialize: (s) => ({ user: s.user, tenant: s.tenant }),
+      /**
+       * After Zustand rehydrates from localStorage, check whether an access
+       * token actually exists.  If not (e.g. after logout or token expiry),
+       * force status back to "idle" so RequireAuth redirects to /login.
+       */
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        const hasToken =
+          !!getAccessToken() || !!localStorage.getItem("ialestra.token");
+        if (!hasToken) {
+          // No token → treat as logged out regardless of persisted user data.
+          state.user = null;
+          state.tenant = null;
+          state.status = "idle";
+        } else {
+          state.status = "authenticated";
+        }
+      },
     }
   )
 );
