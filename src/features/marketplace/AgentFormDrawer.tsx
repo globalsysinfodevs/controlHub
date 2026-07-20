@@ -427,92 +427,88 @@ export function AgentFormDrawer({
           />
         </section>
 
-        {/* ── Tool instances ── */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="eyebrow">Tool instances</p>
-            {mode === "edit" && (
-              <span className="text-2xs text-ink-muted">Changes apply immediately</span>
-            )}
-          </div>
-
-          {allToolInstances.length === 0 ? (
-            <p className="text-xs text-ink-faint">No tool instances available. Create tool instances first via the Tools section.</p>
-          ) : (
-            <>
-              {/* Dropdown to pick an unattached tool instance */}
-              <Select
-                id="af-tool-select"
-                value=""
-                disabled={
-                  assignToolMutation.isPending ||
-                  allToolInstances.every((t) => draft.tool_instance_ids.includes(t.id))
-                }
-                onChange={(e) => {
-                  const id = e.target.value;
-                  if (!id) return;
-                  toggleTool(id);
-                  // Reset select back to placeholder
-                  e.target.value = "";
-                }}
-              >
-                <option value="">— Select a tool instance to add —</option>
-                {allToolInstances
-                  .filter((t) => !draft.tool_instance_ids.includes(t.id))
-                  .map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}{t.tool_type ? ` (${t.tool_type})` : ""}
-                    </option>
-                  ))}
-              </Select>
-
-              {/* Chips for attached tool instances */}
-              {draft.tool_instance_ids.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {draft.tool_instance_ids.map((id) => {
-                    const t = allToolInstances.find((x) => x.id === id);
-                    const isRemoving = removeToolMutation.isPending && removeToolMutation.variables === id;
-                    return (
-                      <span
-                        key={id}
-                        className="flex items-center gap-1.5 rounded-lg border border-brand-500/30 bg-brand-500/8 px-2.5 py-1 text-xs font-medium text-brand-700"
-                      >
-                        <Wrench className="h-3 w-3 shrink-0" />
-                        {t?.name ?? id}
-                        <button
-                          type="button"
-                          disabled={isRemoving}
-                          onClick={() => toggleTool(id)}
-                          className="ml-0.5 rounded p-0.5 hover:bg-danger/15 hover:text-danger disabled:opacity-50 transition-colors"
-                          title="Remove"
-                        >
-                          {isRemoving
-                            ? <span className="block h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
-                            : <X className="h-3 w-3" />}
-                        </button>
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-
-              {draft.tool_instance_ids.length === 0 && (
-                <p className="text-2xs text-ink-faint">No tools attached yet.</p>
-              )}
-            </>
-          )}
-        </section>
-
-        {/* ── Change summary — edit only ── */}
+        {/* ── Tool instances + Change summary — edit mode only ── */}
         {mode === "edit" && (
-          <section className="space-y-3">
-            <p className="eyebrow">Change summary</p>
-            <Input
-              value={draft.change_summary}
-              onChange={(e) => set("change_summary", e.target.value)}
-              placeholder="Brief description of what changed (stored in version history)"
-            />
-          </section>
+          <>
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="eyebrow">Tool instances</p>
+                <span className="text-2xs text-ink-muted">Changes apply immediately</span>
+              </div>
+
+              {allToolInstances.length === 0 ? (
+                <p className="text-xs text-ink-faint">No tool instances available. Create tool instances first via the Tools section.</p>
+              ) : (
+                <>
+                  {/* Dropdown to pick an unattached tool instance */}
+                  <Select
+                    id="af-tool-select"
+                    value=""
+                    disabled={
+                      assignToolMutation.isPending ||
+                      allToolInstances.every((t) => draft.tool_instance_ids.includes(t.id))
+                    }
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      if (!id) return;
+                      toggleTool(id);
+                      e.target.value = "";
+                    }}
+                  >
+                    <option value="">— Select a tool instance to add —</option>
+                    {allToolInstances
+                      .filter((t) => !draft.tool_instance_ids.includes(t.id))
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}{t.tool_type ? ` (${t.tool_type})` : ""}
+                        </option>
+                      ))}
+                  </Select>
+
+                  {/* Chips for attached tool instances */}
+                  {draft.tool_instance_ids.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {draft.tool_instance_ids.map((id) => {
+                        const t = allToolInstances.find((x) => x.id === id);
+                        const isRemoving = removeToolMutation.isPending && removeToolMutation.variables === id;
+                        return (
+                          <span
+                            key={id}
+                            className="flex items-center gap-1.5 rounded-lg border border-brand-500/30 bg-brand-500/8 px-2.5 py-1 text-xs font-medium text-brand-700"
+                          >
+                            <Wrench className="h-3 w-3 shrink-0" />
+                            {t?.name ?? id}
+                            <button
+                              type="button"
+                              disabled={isRemoving}
+                              onClick={() => toggleTool(id)}
+                              className="ml-0.5 rounded p-0.5 hover:bg-danger/15 hover:text-danger disabled:opacity-50 transition-colors"
+                              title="Remove"
+                            >
+                              {isRemoving
+                                ? <span className="block h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
+                                : <X className="h-3 w-3" />}
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-2xs text-ink-faint">No tools attached yet.</p>
+                  )}
+                </>
+              )}
+            </section>
+
+            <section className="space-y-3">
+              <p className="eyebrow">Change summary</p>
+              <Input
+                value={draft.change_summary}
+                onChange={(e) => set("change_summary", e.target.value)}
+                placeholder="Brief description of what changed (stored in version history)"
+              />
+            </section>
+          </>
         )}
       </div>
     </Modal>
