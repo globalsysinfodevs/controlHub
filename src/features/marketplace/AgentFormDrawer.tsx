@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Globe, Minus, Plus, Save, Wrench, X } from "lucide-react";
+import { Globe, Save, Wrench, X } from "lucide-react";
 import { agentsApi, modelsApi, toolsApi } from "@/lib/api/endpoints";
 import type { AgentCreate, AgentUpdate, LLMModel } from "@/lib/api/endpoints";
 import type { Agent } from "@/lib/api/types";
@@ -437,66 +437,69 @@ export function AgentFormDrawer({
           </div>
 
           {allToolInstances.length === 0 ? (
-            <p className="text-xs text-ink-faint">No tool instances available.</p>
+            <p className="text-xs text-ink-faint">No tool instances available. Create tool instances first via the Tools section.</p>
           ) : (
-            <div className="divide-y divide-line rounded-xl border border-line overflow-hidden">
-              {allToolInstances.map((t) => {
-                const isAttached = draft.tool_instance_ids.includes(t.id);
-                const isLoading =
-                  (assignToolMutation.isPending && assignToolMutation.variables === t.id) ||
-                  (removeToolMutation.isPending && removeToolMutation.variables === t.id);
+            <>
+              {/* Dropdown to pick an unattached tool instance */}
+              <Select
+                id="af-tool-select"
+                value=""
+                disabled={
+                  assignToolMutation.isPending ||
+                  allToolInstances.every((t) => draft.tool_instance_ids.includes(t.id))
+                }
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (!id) return;
+                  toggleTool(id);
+                  // Reset select back to placeholder
+                  e.target.value = "";
+                }}
+              >
+                <option value="">— Select a tool instance to add —</option>
+                {allToolInstances
+                  .filter((t) => !draft.tool_instance_ids.includes(t.id))
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}{t.tool_type ? ` (${t.tool_type})` : ""}
+                    </option>
+                  ))}
+              </Select>
 
-                return (
-                  <div
-                    key={t.id}
-                    className={
-                      "flex items-center justify-between px-3 py-2.5 transition-colors " +
-                      (isAttached ? "bg-brand-500/5" : "bg-base/40")
-                    }
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Wrench
-                        className={
-                          "h-3.5 w-3.5 shrink-0 " +
-                          (isAttached ? "text-brand-600" : "text-ink-faint")
-                        }
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-medium text-ink">{t.name}</p>
-                        {t.tool_type && (
-                          <p className="truncate text-2xs text-ink-muted">{t.tool_type}</p>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={isLoading}
-                      onClick={() => toggleTool(t.id)}
-                      className={
-                        "ml-3 flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 text-2xs font-medium transition-colors disabled:opacity-50 " +
-                        (isAttached
-                          ? "border border-danger/30 bg-danger/5 text-danger hover:bg-danger/10"
-                          : "border border-brand-500/30 bg-brand-500/5 text-brand-600 hover:bg-brand-500/10")
-                      }
-                    >
-                      {isLoading ? (
-                        <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
-                      ) : isAttached ? (
-                        <><Minus className="h-3 w-3" /> Remove</>
-                      ) : (
-                        <><Plus className="h-3 w-3" /> Add</>
-                      )}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+              {/* Chips for attached tool instances */}
+              {draft.tool_instance_ids.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {draft.tool_instance_ids.map((id) => {
+                    const t = allToolInstances.find((x) => x.id === id);
+                    const isRemoving = removeToolMutation.isPending && removeToolMutation.variables === id;
+                    return (
+                      <span
+                        key={id}
+                        className="flex items-center gap-1.5 rounded-lg border border-brand-500/30 bg-brand-500/8 px-2.5 py-1 text-xs font-medium text-brand-700"
+                      >
+                        <Wrench className="h-3 w-3 shrink-0" />
+                        {t?.name ?? id}
+                        <button
+                          type="button"
+                          disabled={isRemoving}
+                          onClick={() => toggleTool(id)}
+                          className="ml-0.5 rounded p-0.5 hover:bg-danger/15 hover:text-danger disabled:opacity-50 transition-colors"
+                          title="Remove"
+                        >
+                          {isRemoving
+                            ? <span className="block h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
+                            : <X className="h-3 w-3" />}
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
 
-          {draft.tool_instance_ids.length > 0 && (
-            <p className="text-2xs text-ink-muted">
-              {draft.tool_instance_ids.length} tool{draft.tool_instance_ids.length !== 1 ? "s" : ""} attached
-            </p>
+              {draft.tool_instance_ids.length === 0 && (
+                <p className="text-2xs text-ink-faint">No tools attached yet.</p>
+              )}
+            </>
           )}
         </section>
 
@@ -510,16 +513,6 @@ export function AgentFormDrawer({
               placeholder="Brief description of what changed (stored in version history)"
             />
           </section>
-        )}
-
-        {/* ── Hint when no tool instances exist ── */}
-        {mode === "edit" && allToolInstances.length === 0 && (
-          <div className="flex items-start gap-2 rounded-xl border border-line bg-base/40 p-3">
-            <X className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
-            <p className="text-xs text-ink-muted">
-              No tool instances found. Create tool instances first via the Tools section.
-            </p>
-          </div>
         )}
       </div>
     </Modal>
