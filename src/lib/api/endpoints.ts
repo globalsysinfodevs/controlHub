@@ -536,21 +536,32 @@ export const agentsApi = {
 // Models (LLM)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface ModelCreate { name: string; display_name?: string; default_for_new_tenants?: boolean; }
-export interface ModelUpdate { is_active?: boolean; default_for_new_tenants?: boolean; display_name?: string; }
+export interface ModelCreate {
+  name: string;
+  display_name?: string;
+  /** Provider API key for this model */
+  api_key?: string;
+  default_for_new_tenants?: boolean;
+}
+export interface ModelUpdate {
+  is_active?: boolean;
+  display_name?: string;
+  /** ISO date string e.g. "2026-12-31" */
+  deprecation_date?: string | null;
+  default_for_new_tenants?: boolean;
+  api_key?: string;
+}
 
 export const modelsApi = {
-  /** GET /api/v1/models — active models */
+  /** GET /api/v1/models — active models (tenant-scoped) */
   list: () => api.get<unknown[]>("/models"),
-  /** GET /api/v1/models/all — full catalogue (super admin) */
+  /** GET /api/v1/models/all — full catalogue including inactive (super admin) */
   listAll: () => api.get<unknown[]>("/models/all"),
-  /** GET /api/v1/models/available — addable models */
-  available: () => api.get<string[]>("/models/available"),
-  /** POST /api/v1/models — super admin */
+  /** POST /api/v1/models — add a model (super admin) */
   add: (body: ModelCreate) => api.post<unknown>("/models", body),
-  /** PUT /api/v1/models/{model_id} — super admin */
+  /** PUT /api/v1/models/{model_id} — update a model (super admin) */
   update: (id: string, body: ModelUpdate) => api.put<unknown>(`/models/${id}`, body),
-  /** DELETE /api/v1/models/{model_id} — deactivate */
+  /** DELETE /api/v1/models/{model_id} — deactivate a model (super admin) */
   remove: (id: string) => api.delete<null>(`/models/${id}`),
 };
 
@@ -739,21 +750,31 @@ export const securityApi = {
 // Tools
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface ToolInstanceCreate { name: string; tool_type: string; config?: Record<string, unknown> | null; }
-export interface ToolInstanceUpdate { name?: string; config?: Record<string, unknown> | null; }
+export interface ToolInstanceCreate {
+  /** UUID of the tool definition to instantiate */
+  tool_definition_id: string;
+  name: string;
+  /** Optional datasource to attach */
+  data_source_id?: string | null;
+}
+export interface ToolInstanceUpdate {
+  name?: string;
+  data_source_id?: string | null;
+}
 
 export const toolsApi = {
-  /** GET /api/v1/tools/definitions */
+  /** GET /api/v1/tools/definitions — list all available tool definitions */
   definitions: () => api.get<Tool[]>("/tools/definitions"),
   /** Alias for definitions() — legacy callers use toolsApi.list() */
   list: () => api.get<Tool[]>("/tools/definitions"),
-  /** GET /api/v1/tools/instances */
-  instances: () => api.get<unknown[]>("/tools/instances"),
-  /** POST /api/v1/tools/instances */
+  /** GET /api/v1/tools/instances[?tenant_id=uuid] */
+  instances: (tenant_id?: string) =>
+    api.get<unknown[]>("/tools/instances", tenant_id ? { tenant_id } : undefined),
+  /** POST /api/v1/tools/instances — create a tool instance */
   createInstance: (body: ToolInstanceCreate) => api.post<unknown>("/tools/instances", body),
-  /** PUT /api/v1/tools/instances/{ti_id} */
+  /** PUT /api/v1/tools/instances/{ti_id} — update a tool instance */
   updateInstance: (id: string, body: ToolInstanceUpdate) => api.put<unknown>(`/tools/instances/${id}`, body),
-  /** DELETE /api/v1/tools/instances/{ti_id} */
+  /** DELETE /api/v1/tools/instances/{ti_id} — delete a tool instance */
   deleteInstance: (id: string) => api.delete<null>(`/tools/instances/${id}`),
 };
 

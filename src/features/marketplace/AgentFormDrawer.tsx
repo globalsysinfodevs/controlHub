@@ -4,15 +4,17 @@
  * Create: POST /api/v1/agents
  * Edit:   PUT  /api/v1/agents/{id}
  *
- * Fields exposed:
- *   name, description, category_id, template_key, base_system_prompt,
- *   llm_model_id, tool_instance_ids (create only), status, is_global (create only)
+ * Tool management (both modes):
+ *   - Lists tool instances from GET /api/v1/tools/instances
+ *   - Create mode: passes tool_instance_ids[] in the create body
+ *   - Edit mode:   POST /api/v1/agents/{id}/tools   (assign)
+ *                  DELETE /api/v1/agents/{id}/tools/{ti_id} (remove)
  */
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Globe, Save, Wrench, X } from "lucide-react";
+import { Globe, Minus, Plus, Save, Wrench, X } from "lucide-react";
 import { agentsApi, modelsApi, toolsApi } from "@/lib/api/endpoints";
-import type { AgentCreate, AgentUpdate } from "@/lib/api/endpoints";
+import type { AgentCreate, AgentUpdate, LLMModel } from "@/lib/api/endpoints";
 import type { Agent } from "@/lib/api/types";
 import { toast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
@@ -23,8 +25,7 @@ import { Input, Label, Select, Textarea } from "@/components/ui/Field";
 
 interface BackendCategory { id: string; name: string; }
 interface AgentTemplate { id: string; name: string; key?: string; description?: string | null; }
-interface ToolInstance { id: string; name: string; tool_type?: string; }
-interface LLMModel { id: string; name: string; display_name?: string; }
+interface ToolInstance { id: string; name: string; tool_type?: string; tool_definition_id?: string; }
 
 // ── Draft shape ───────────────────────────────────────────────────────────────
 
@@ -62,7 +63,10 @@ function toDraft(a: Agent): Draft {
     template_key: a.template_key ?? "",
     base_system_prompt: a.system_prompt ?? a.behavior_prompt ?? "",
     llm_model_id: a.model_id ?? "",
-    tool_instance_ids: [],          // tools are managed separately after creation
+    // Existing tool IDs come from the agent's tools array (if present)
+    tool_instance_ids: Array.isArray((a as unknown as Record<string, unknown>).tool_instance_ids)
+      ? ((a as unknown as Record<string, unknown>).tool_instance_ids as string[])
+      : [],
     status: a.status,
     is_global: a.is_global,
     change_summary: "",
@@ -117,7 +121,7 @@ export function AgentFormDrawer({
   });
 
   const { data: models = [] } = useQuery<LLMModel[]>({
-    queryKey: ["models-all"],
+    queryKey: ["models", "all"],
     queryFn: async () => {
       const res = await modelsApi.listAll() as unknown;
       if (Array.isArray(res)) return res as LLMModel[];
@@ -126,9 +130,11 @@ export function AgentFormDrawer({
       return [];
     },
     staleTime: 10 * 60 * 1000,
+    enabled: open,
   });
 
-  const { data: toolInstances = [] } = useQuery<ToolInstance[]>({
+  // All available tool instances from the backend
+  const { data: allToolInstances = [] } = useQuery<ToolInstance[]>({
     queryKey: ["tool-instances"],
     queryFn: async () => {
       const res = await toolsApi.instances() as unknown;
@@ -137,7 +143,7 @@ export function AgentFormDrawer({
         return ((res as { items: ToolInstance[] }).items) ?? [];
       return [];
     },
-    enabled: open && mode === "create",
+    enabled: open,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -195,20 +201,67 @@ export function AgentFormDrawer({
     onError: (e) => toast.error("Could not update agent", (e as Error).message),
   });
 
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  // Assign a tool instance to the agent (edit mode — live call)
+  const assignToolMutation = useMutation({
+    mutationFn: (toolInstanceId: string) =>
+      agentsApi.assignTool(agent!.id, { tool_instance_id: toolInstanceId }),
+    onSuccess: (_data, toolInstanceId) => {
+      setDraft((d) => ({ ...d, tool_instance_ids: [...d.tool_instance_ids, toolInstanceId] }));
+      toast.success("Tool added");
+      invalidate();
+    },
+    onError: (e) => toast.error("Could not add tool", (e as Error).message),
+  });
+
+  // Remove a tool instance from the agent (edit mode — live call)
+  const removeToolMutation = useMutation({
+    mutationFn: (toolInstanceId: string) =>
+      agentsApi.removeTool(agent!.id, toolInstanceId),
+    onSuccess: (_data, toolInstanceId) => {
+      setDraft((d) => ({
+        ...d,
+        tool_instance_ids: d.tool_instance_ids.filter((id) => id !== toolInstanceId),
+      }));
+      toast.success("Tool removed");
+      invalidate();
+    },
+    onError: (e) => toast.error("Could not remove tool", (e as Error).message),
+  });
+
+  const isPending =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    assignToolMutation.isPending ||
+    removeToolMutation.isPending;
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
 
-  const toggleTool = (id: string) =>
-    setDraft((d) => ({
-      ...d,
-      tool_instance_ids: d.tool_instance_ids.includes(id)
-        ? d.tool_instance_ids.filter((x) => x !== id)
-        : [...d.tool_instance_ids, id],
-    }));
+  /**
+   * Toggle a tool on/off.
+   * - Create mode: just updates local draft (sent in the create body).
+   * - Edit mode: immediately calls the backend assign/remove endpoint.
+   */
+  const toggleTool = (id: string) => {
+    const isOn = draft.tool_instance_ids.includes(id);
+    if (mode === "create") {
+      setDraft((d) => ({
+        ...d,
+        tool_instance_ids: isOn
+          ? d.tool_instance_ids.filter((x) => x !== id)
+          : [...d.tool_instance_ids, id],
+      }));
+    } else {
+      // Edit mode — call backend immediately
+      if (isOn) {
+        removeToolMutation.mutate(id);
+      } else {
+        assignToolMutation.mutate(id);
+      }
+    }
+  };
 
   const handleSubmit = () => {
     if (!draft.name.trim()) return;
@@ -237,7 +290,7 @@ export function AgentFormDrawer({
           <Button
             leftIcon={<Save className="h-4 w-4" />}
             onClick={handleSubmit}
-            loading={isPending}
+            loading={createMutation.isPending || updateMutation.isPending}
             disabled={!draft.name.trim()}
           >
             {mode === "create" ? "Create agent" : "Save changes"}
@@ -374,37 +427,78 @@ export function AgentFormDrawer({
           />
         </section>
 
-        {/* ── Tool instances — create only ── */}
-        {mode === "create" && (
-          <section className="space-y-3">
+        {/* ── Tool instances ── */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
             <p className="eyebrow">Tool instances</p>
-            {toolInstances.length === 0 ? (
-              <p className="text-xs text-ink-faint">No tool instances available.</p>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {toolInstances.map((t) => {
-                  const on = draft.tool_instance_ids.includes(t.id);
-                  return (
+            {mode === "edit" && (
+              <span className="text-2xs text-ink-muted">Changes apply immediately</span>
+            )}
+          </div>
+
+          {allToolInstances.length === 0 ? (
+            <p className="text-xs text-ink-faint">No tool instances available.</p>
+          ) : (
+            <div className="divide-y divide-line rounded-xl border border-line overflow-hidden">
+              {allToolInstances.map((t) => {
+                const isAttached = draft.tool_instance_ids.includes(t.id);
+                const isLoading =
+                  (assignToolMutation.isPending && assignToolMutation.variables === t.id) ||
+                  (removeToolMutation.isPending && removeToolMutation.variables === t.id);
+
+                return (
+                  <div
+                    key={t.id}
+                    className={
+                      "flex items-center justify-between px-3 py-2.5 transition-colors " +
+                      (isAttached ? "bg-brand-500/5" : "bg-base/40")
+                    }
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Wrench
+                        className={
+                          "h-3.5 w-3.5 shrink-0 " +
+                          (isAttached ? "text-brand-600" : "text-ink-faint")
+                        }
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-medium text-ink">{t.name}</p>
+                        {t.tool_type && (
+                          <p className="truncate text-2xs text-ink-muted">{t.tool_type}</p>
+                        )}
+                      </div>
+                    </div>
                     <button
-                      key={t.id}
                       type="button"
+                      disabled={isLoading}
                       onClick={() => toggleTool(t.id)}
                       className={
-                        "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-colors " +
-                        (on
-                          ? "border-brand-500/50 bg-brand-500/10 text-ink"
-                          : "border-line bg-base/40 text-ink-muted hover:border-line-strong")
+                        "ml-3 flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 text-2xs font-medium transition-colors disabled:opacity-50 " +
+                        (isAttached
+                          ? "border border-danger/30 bg-danger/5 text-danger hover:bg-danger/10"
+                          : "border border-brand-500/30 bg-brand-500/5 text-brand-600 hover:bg-brand-500/10")
                       }
                     >
-                      <Wrench className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{t.name}</span>
+                      {isLoading ? (
+                        <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
+                      ) : isAttached ? (
+                        <><Minus className="h-3 w-3" /> Remove</>
+                      ) : (
+                        <><Plus className="h-3 w-3" /> Add</>
+                      )}
                     </button>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {draft.tool_instance_ids.length > 0 && (
+            <p className="text-2xs text-ink-muted">
+              {draft.tool_instance_ids.length} tool{draft.tool_instance_ids.length !== 1 ? "s" : ""} attached
+            </p>
+          )}
+        </section>
 
         {/* ── Change summary — edit only ── */}
         {mode === "edit" && (
@@ -418,12 +512,12 @@ export function AgentFormDrawer({
           </section>
         )}
 
-        {/* ── Tool management hint — edit mode ── */}
-        {mode === "edit" && (
+        {/* ── Hint when no tool instances exist ── */}
+        {mode === "edit" && allToolInstances.length === 0 && (
           <div className="flex items-start gap-2 rounded-xl border border-line bg-base/40 p-3">
             <X className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
             <p className="text-xs text-ink-muted">
-              To add or remove tools from this agent, use the agent detail panel after saving.
+              No tool instances found. Create tool instances first via the Tools section.
             </p>
           </div>
         )}

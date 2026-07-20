@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Building2, Copy, Cpu, Eye, KeyRound, Plus, Save, Sparkles, Terminal } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bell, Building2, Copy, Cpu, Eye, KeyRound, Plus, Save, Terminal, Trash2 } from "lucide-react";
 import { Toggle } from "@/components/ui/Toggle";
 import { toast } from "@/components/ui/Toast";
 import { isMock } from "@/lib/api/client";
@@ -213,102 +213,230 @@ function Lbl({ children, noMargin }: { children: React.ReactNode; noMargin?: boo
   return <label className={"block text-xs font-semibold text-g-dark " + (noMargin ? "" : "mb-1.5")}>{children}</label>;
 }
 
-// ── Modelos tab — Super Admin model catalogue (IAlestra AI API, §22) ─────────
+// ── Modelos tab — Super Admin model catalogue ─────────────────────────────────
+
+/** Mock data shown only in demo / VITE_USE_MOCK=true mode. */
 const MOCK_MODELS: LLMModel[] = [
-  { id: "m1", name: "gpt-4o", display_name: "GPT-4o", is_active: true, deprecation_date: null, default_for_new_tenants: false },
-  { id: "m2", name: "gpt-5.4", display_name: "GPT-5.4", is_active: true, deprecation_date: null, default_for_new_tenants: false },
-  { id: "m3", name: "gpt-4.1", display_name: "GPT-4.1", is_active: true, deprecation_date: null, default_for_new_tenants: false },
-  { id: "m4", name: "gpt-4o-mini", display_name: "GPT-4o mini", is_active: true, deprecation_date: null, default_for_new_tenants: true },
+  { id: "m1", name: "gpt-4o",      display_name: "GPT-4o",      is_active: true,  deprecation_date: null, default_for_new_tenants: false },
+  { id: "m2", name: "gpt-5.4",     display_name: "GPT-5.4",     is_active: true,  deprecation_date: null, default_for_new_tenants: false },
+  { id: "m3", name: "gpt-4.1",     display_name: "GPT-4.1",     is_active: true,  deprecation_date: null, default_for_new_tenants: false },
+  { id: "m4", name: "gpt-4o-mini", display_name: "GPT-4o mini", is_active: true,  deprecation_date: null, default_for_new_tenants: true  },
 ];
+
+interface AddModelDraft { name: string; display_name: string; api_key: string; default_for_new_tenants: boolean; }
+const EMPTY_DRAFT: AddModelDraft = { name: "", display_name: "", api_key: "", default_for_new_tenants: false };
 
 function ModelosTab() {
   const qc = useQueryClient();
-  const modelsQ = useQuery({ queryKey: ["models", "all"], queryFn: () => modelsApi.listAll(), enabled: !isMock, retry: false });
-  const availQ = useQuery({ queryKey: ["models", "available"], queryFn: () => modelsApi.available(), enabled: !isMock, retry: false });
 
-  const models: LLMModel[] = isMock ? MOCK_MODELS : (modelsQ.data as LLMModel[] | undefined) ?? [];
-  const available = isMock ? [] : availQ.data ?? [];
-  const [adding, setAdding] = useState("");
+  // GET /api/v1/models/all — full catalogue including inactive (super admin)
+  const modelsQ = useQuery({
+    queryKey: ["models", "all"],
+    queryFn: () => modelsApi.listAll(),
+    enabled: !isMock,
+    retry: false,
+  });
 
-  const refresh = () => {
-    qc.invalidateQueries({ queryKey: ["models"] });
-  };
+  const models: LLMModel[] = isMock
+    ? MOCK_MODELS
+    : (modelsQ.data as LLMModel[] | undefined) ?? [];
 
-  async function add(name: string) {
-    if (!name) return;
-    if (isMock) return toast.info("Modo demo", "Conéctate al backend para administrar modelos.");
-    try {
-      await modelsApi.add({ name });
-      toast.success("Modelo añadido", name);
-      setAdding("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [draft, setDraft] = useState<AddModelDraft>(EMPTY_DRAFT);
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ["models"] });
+
+  // ── Add model ──────────────────────────────────────────────────────────────
+  const addMut = useMutation({
+    mutationFn: () =>
+      modelsApi.add({
+        name: draft.name.trim(),
+        display_name: draft.display_name.trim() || undefined,
+        api_key: draft.api_key.trim() || undefined,
+        default_for_new_tenants: draft.default_for_new_tenants,
+      }),
+    onSuccess: () => {
+      toast.success("Modelo añadido", draft.display_name || draft.name);
+      setDraft(EMPTY_DRAFT);
+      setShowAdd(false);
       refresh();
-    } catch (e) {
-      toast.error("No se pudo añadir", (e as Error).message);
-    }
-  }
+    },
+    onError: (e: Error) => toast.error("No se pudo añadir", e.message),
+  });
 
-  async function toggle(m: LLMModel, on: boolean) {
-    if (isMock) return;
-    try {
-      await modelsApi.update(m.id, { is_active: on });
-      refresh();
-    } catch (e) {
-      toast.error("No se pudo actualizar", (e as Error).message);
-    }
-  }
+  // ── Toggle active / inactive ───────────────────────────────────────────────
+  const toggleMut = useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
+      modelsApi.update(id, { is_active }),
+    onSuccess: () => refresh(),
+    onError: (e: Error) => toast.error("No se pudo actualizar", e.message),
+  });
 
-  async function makeDefault(m: LLMModel) {
-    if (isMock) return;
-    try {
-      await modelsApi.update(m.id, { default_for_new_tenants: true });
-      toast.success("Modelo por defecto actualizado", m.display_name);
+  // ── Set as default for new tenants ─────────────────────────────────────────
+  const defaultMut = useMutation({
+    mutationFn: (m: LLMModel) =>
+      modelsApi.update(m.id, { default_for_new_tenants: true }),
+    onSuccess: (_data, m) => {
+      toast.success("Modelo por defecto actualizado", m.display_name ?? m.name);
       refresh();
-    } catch (e) {
-      toast.error("No se pudo actualizar", (e as Error).message);
-    }
-  }
+    },
+    onError: (e: Error) => toast.error("No se pudo actualizar", e.message),
+  });
+
+  // ── Deactivate (DELETE) ────────────────────────────────────────────────────
+  const removeMut = useMutation({
+    mutationFn: (id: string) => modelsApi.remove(id),
+    onSuccess: () => { toast.success("Modelo desactivado"); refresh(); },
+    onError: (e: Error) => toast.error("No se pudo desactivar", e.message),
+  });
+
+  const isLoading = modelsQ.isLoading;
 
   return (
-    <Card icon={<Cpu className="h-4 w-4 text-secondary" />} tint="bg-secondary/10" title="Catálogo de modelos (IAlestra AI API)" sub="Solo el Super Admin activa modelos del proveedor IAlestra. Los tenants solo pueden usar modelos activos.">
-      {/* Add from the IAlestra universe */}
-      {available.length > 0 && (
-        <div className="mb-5 flex items-center gap-2 rounded-xl border border-secondary/20 bg-secondary/5 p-3">
-          <Sparkles className="h-4 w-4 flex-shrink-0 text-secondary" />
-          <span className="text-xs text-g-dark">Añadir del catálogo IAlestra:</span>
-          <select value={adding} onChange={(e) => setAdding(e.target.value)} className="rounded-lg border border-g-mid bg-white px-3 py-1.5 text-xs text-primary focus:border-secondary focus:outline-none">
-            <option value="">Selecciona un modelo…</option>
-            {available.map((n) => (<option key={n} value={n}>{n}</option>))}
-          </select>
-          <button onClick={() => add(adding)} disabled={!adding} className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-600 disabled:opacity-50">
-            <Plus className="h-3 w-3" /> Añadir
+    <Card
+      icon={<Cpu className="h-4 w-4 text-secondary" />}
+      tint="bg-secondary/10"
+      title="Catálogo de modelos LLM"
+      sub="Solo el Super Admin puede añadir, activar o desactivar modelos. Los tenants solo ven modelos activos."
+    >
+      {/* ── Add model form ── */}
+      <div className="mb-5">
+        {!showAdd ? (
+          <button
+            onClick={() => { if (isMock) { toast.info("Modo demo", "Conéctate al backend para administrar modelos."); return; } setShowAdd(true); }}
+            className="flex items-center gap-1.5 rounded-xl border border-dashed border-secondary/40 px-4 py-2 text-xs font-medium text-secondary hover:border-secondary hover:bg-secondary/5"
+          >
+            <Plus className="h-3.5 w-3.5" /> Añadir modelo
           </button>
-        </div>
-      )}
-
-      <div className="divide-y divide-g-mid">
-        {models.length === 0 && <p className="py-6 text-sm text-g-dark">No hay modelos en el catálogo. Añade uno del proveedor IAlestra.</p>}
-        {models.map((m) => (
-          <div key={m.id} className="flex items-center justify-between py-3">
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary"><Cpu className="h-4 w-4" /></span>
+        ) : (
+          <div className="rounded-xl border border-secondary/20 bg-secondary/5 p-4 space-y-3">
+            <p className="text-xs font-semibold text-primary">Nuevo modelo</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-primary">{m.display_name}</p>
-                  {m.default_for_new_tenants && <span className="rounded-full bg-secondary/15 px-2 py-0.5 text-2xs font-medium text-secondary-600">Por defecto</span>}
-                  {!m.is_active && <span className="rounded-full bg-g-mid px-2 py-0.5 text-2xs text-g-dark">Inactivo</span>}
-                </div>
-                <p className="font-mono text-2xs text-g-dark">{m.name}</p>
+                <Lbl>Nombre del modelo <span className="text-danger">*</span></Lbl>
+                <input
+                  placeholder="gpt-4o"
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  className={FIELD}
+                />
+              </div>
+              <div>
+                <Lbl>Nombre para mostrar</Lbl>
+                <input
+                  placeholder="GPT-4o"
+                  value={draft.display_name}
+                  onChange={(e) => setDraft({ ...draft, display_name: e.target.value })}
+                  className={FIELD}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Lbl>API Key del proveedor</Lbl>
+                <input
+                  type="password"
+                  placeholder="sk-…"
+                  value={draft.api_key}
+                  onChange={(e) => setDraft({ ...draft, api_key: e.target.value })}
+                  className={FIELD + " font-mono"}
+                />
+              </div>
+              <div className="sm:col-span-2 flex items-center gap-2">
+                <input
+                  id="default-new"
+                  type="checkbox"
+                  checked={draft.default_for_new_tenants}
+                  onChange={(e) => setDraft({ ...draft, default_for_new_tenants: e.target.checked })}
+                  className="h-4 w-4 rounded border-g-mid accent-secondary"
+                />
+                <label htmlFor="default-new" className="text-xs text-g-dark cursor-pointer">
+                  Usar como modelo por defecto para nuevos tenants
+                </label>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {m.is_active && !m.default_for_new_tenants && (
-                <button onClick={() => makeDefault(m)} className="text-2xs text-secondary-600 hover:underline">Hacer por defecto</button>
-              )}
-              <Toggle checked={m.is_active} onChange={(on) => toggle(m, on)} />
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                disabled={!draft.name.trim() || addMut.isPending}
+                onClick={() => addMut.mutate()}
+                className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:bg-primary-600 disabled:opacity-50"
+              >
+                <Plus className="h-3 w-3" /> {addMut.isPending ? "Añadiendo…" : "Añadir"}
+              </button>
+              <button
+                onClick={() => { setShowAdd(false); setDraft(EMPTY_DRAFT); }}
+                className="rounded-xl border border-g-mid px-4 py-2 text-xs text-g-dark hover:bg-g-light"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
-        ))}
+        )}
       </div>
+
+      {/* ── Model list ── */}
+      {isLoading && <p className="py-6 text-sm text-g-dark">Cargando modelos…</p>}
+      {!isLoading && (
+        <div className="divide-y divide-g-mid">
+          {models.length === 0 && (
+            <p className="py-6 text-sm text-g-dark">No hay modelos en el catálogo. Añade el primero.</p>
+          )}
+          {models.map((m) => (
+            <div key={m.id} className="flex items-center justify-between py-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Cpu className="h-4 w-4" />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-primary">{m.display_name ?? m.name}</p>
+                    {m.default_for_new_tenants && (
+                      <span className="rounded-full bg-secondary/15 px-2 py-0.5 text-2xs font-medium text-secondary-600">
+                        Por defecto
+                      </span>
+                    )}
+                    {!m.is_active && (
+                      <span className="rounded-full bg-g-mid px-2 py-0.5 text-2xs text-g-dark">Inactivo</span>
+                    )}
+                    {m.deprecation_date && (
+                      <span className="rounded-full bg-warning/15 px-2 py-0.5 text-2xs text-warning-700">
+                        Deprecado {m.deprecation_date}
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-mono text-2xs text-g-dark">{m.name}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {m.is_active && !m.default_for_new_tenants && !isMock && (
+                  <button
+                    onClick={() => defaultMut.mutate(m)}
+                    disabled={defaultMut.isPending}
+                    className="text-2xs text-secondary-600 hover:underline disabled:opacity-50"
+                  >
+                    Hacer por defecto
+                  </button>
+                )}
+                {!isMock && (
+                  <button
+                    onClick={() => removeMut.mutate(m.id)}
+                    disabled={removeMut.isPending}
+                    title="Desactivar modelo"
+                    className="rounded-lg p-1.5 text-g-dark hover:bg-danger/10 hover:text-danger disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <Toggle
+                  checked={m.is_active}
+                  onChange={(on) => {
+                    if (isMock) return;
+                    toggleMut.mutate({ id: m.id, is_active: on });
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
