@@ -15,6 +15,7 @@ import { PlatformConfigPage } from "@/features/platform/PlatformConfigPage";
 import { MarketplacePage } from "@/features/marketplace/MarketplacePage";
 import { AnalyticsPage } from "@/features/analytics/AnalyticsPage";
 import { ConfigPage } from "@/features/config/ConfigPage";
+import { ToolsPage } from "@/pages/ToolsPage";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const status = useAuth((s) => s.status);
@@ -90,6 +91,7 @@ export const router = createBrowserRouter([
       { path: "marketplace", element: <MarketplacePage /> },
       { path: "analytics", element: <AnalyticsPage /> },
       { path: "config", element: <ConfigPage /> },
+      { path: "tools", element: <ToolsPage /> },
     ],
   },
   { path: "*", element: <HomeRedirect /> },
