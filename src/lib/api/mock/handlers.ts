@@ -379,6 +379,64 @@ export async function mockRequest(
   if (m === "GET" && p === "/users") return paginate([...db.users], q, "Users retrieved");
   if (m === "GET" && p === "/groups") return ok(db.groups);
   if (m === "GET" && p === "/tools") return ok(db.tools);
+
+  // ── Tool definitions ──────────────────────────────────────────────────
+  if (m === "GET" && p === "/tools/definitions") {
+    return paginate([...db.toolDefinitions], q, "Tool definitions retrieved");
+  }
+
+  // ── Tool instances ────────────────────────────────────────────────────
+  if (m === "GET" && p === "/tools/instances") {
+    return paginate([...db.toolInstances], q, "Tool instances retrieved");
+  }
+  if (m === "POST" && p === "/tools/instances") {
+    const b = (body ?? {}) as Json;
+    const ti: db.ToolInstance = {
+      id: saId("ti"),
+      name: String(b.name ?? "New Tool Instance"),
+      tool_type: String(b.tool_type ?? "api_call"),
+      tool_definition_id: String(b.tool_definition_id ?? ""),
+      data_source_id: (b.data_source_id as string) ?? null,
+      tenant_id: (b.tenant_id as string) ?? null,
+      description: (b.description as string) ?? null,
+      status: "active",
+      created_at: saNow(),
+    };
+    db.toolInstances.unshift(ti);
+    return ok(ti, "Tool instance created");
+  }
+  if ((m === "GET" || m === "PATCH" || m === "DELETE") && /^\/tools\/instances\/[^/]+$/.test(p)) {
+    const id = p.split("/")[3];
+    const idx = db.toolInstances.findIndex((t) => t.id === id);
+    if (idx === -1) throw apiError(404, "not_found", "Tool instance not found");
+    if (m === "GET") return ok(db.toolInstances[idx], "Tool instance retrieved");
+    if (m === "DELETE") { db.toolInstances.splice(idx, 1); return ok(null, "Tool instance deleted"); }
+    const b = (body ?? {}) as Json;
+    db.toolInstances[idx] = { ...db.toolInstances[idx], ...b } as db.ToolInstance;
+    return ok(db.toolInstances[idx], "Tool instance updated");
+  }
+
+  // ── Agent tool assignment (edit mode) ─────────────────────────────────
+  if (m === "POST" && /^\/agents\/[^/]+\/tools$/.test(p)) {
+    const agentId = p.split("/")[2];
+    const agent = db.agents.find((a) => a.id === agentId);
+    if (!agent) throw apiError(404, "not_found", "Agent not found");
+    const tiId = String((body ?? {})["tool_instance_id"] ?? "");
+    if (!agent.tools.includes(tiId)) agent.tools = [...agent.tools, tiId];
+    persistAgents();
+    return ok({ agent_id: agentId, tool_instance_id: tiId }, "Tool assigned");
+  }
+  if (m === "DELETE" && /^\/agents\/[^/]+\/tools\/[^/]+$/.test(p)) {
+    const parts = p.split("/");
+    const agentId = parts[2];
+    const tiId = parts[4];
+    const agent = db.agents.find((a) => a.id === agentId);
+    if (!agent) throw apiError(404, "not_found", "Agent not found");
+    agent.tools = agent.tools.filter((t) => t !== tiId);
+    persistAgents();
+    return ok(null, "Tool removed");
+  }
+
   if (m === "GET" && p === "/conversations") return ok(db.conversations);
   if (m === "GET" && p === "/security/alerts") return paginate([...db.securityAlerts], q, "Alerts retrieved");
   if (m === "GET" && p === "/audit-logs") {

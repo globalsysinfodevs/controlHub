@@ -67,6 +67,44 @@ export const tools: Tool[] = [
   { id: "tool_ticketing", name: "ServiceNow", type: "api_call", description: "Create and update incident tickets.", status: "error", secret_ref: "kv://alestra/snow", used_by_agents: 1 },
 ];
 
+/** Tool definitions — the catalogue of available tool types. */
+export interface ToolDefinition {
+  id: string;
+  name: string;
+  tool_type: string;
+  description: string | null;
+  created_at: string;
+}
+
+export const toolDefinitions: ToolDefinition[] = [
+  { id: "tdef_sql",    name: "SQL Query",       tool_type: "sql_query",       description: "Execute read-only SQL against a relational database.", created_at: isoDaysAgo(200) },
+  { id: "tdef_api",    name: "API Call",         tool_type: "api_call",        description: "Call an external REST API with configurable auth.",    created_at: isoDaysAgo(200) },
+  { id: "tdef_doc",    name: "Document Reader",  tool_type: "document_reader", description: "RAG retrieval over indexed document collections.",      created_at: isoDaysAgo(180) },
+  { id: "tdef_web",    name: "Web Search",       tool_type: "web_search",      description: "Grounded public web search via SERP API.",              created_at: isoDaysAgo(180) },
+  { id: "tdef_ds",     name: "Data Source",      tool_type: "data_source",     description: "Connect to a registered data source.",                  created_at: isoDaysAgo(150) },
+];
+
+/** Tool instances — concrete configured instances of tool definitions. */
+export interface ToolInstance {
+  id: string;
+  name: string;
+  tool_type: string;
+  tool_definition_id: string;
+  data_source_id: string | null;
+  tenant_id: string | null;
+  description: string | null;
+  status: string;
+  created_at: string;
+}
+
+export const toolInstances: ToolInstance[] = [
+  { id: "ti_billing_db",  name: "Billing Postgres",  tool_type: "sql_query",       tool_definition_id: "tdef_sql",  data_source_id: null, tenant_id: null, description: "Read-only access to the subscriber billing warehouse.", status: "active", created_at: isoDaysAgo(190) },
+  { id: "ti_crm",         name: "Salesforce CRM",    tool_type: "api_call",        tool_definition_id: "tdef_api",  data_source_id: null, tenant_id: null, description: "Account, case, and entitlement lookups via REST.",       status: "active", created_at: isoDaysAgo(185) },
+  { id: "ti_kb_docs",     name: "Knowledge Library", tool_type: "document_reader", tool_definition_id: "tdef_doc",  data_source_id: null, tenant_id: null, description: "RAG over 4,210 indexed network runbooks and policies.",   status: "active", created_at: isoDaysAgo(180) },
+  { id: "ti_websearch",   name: "Web Search",        tool_type: "web_search",      tool_definition_id: "tdef_web",  data_source_id: null, tenant_id: null, description: "Grounded public web search for research agents.",         status: "active", created_at: isoDaysAgo(175) },
+  { id: "ti_ticketing",   name: "ServiceNow",        tool_type: "api_call",        tool_definition_id: "tdef_api",  data_source_id: null, tenant_id: null, description: "Create and update incident tickets.",                     status: "error",  created_at: isoDaysAgo(160) },
+];
+
 const SYSTEM_PROMPT = `You are a specialist assistant for Alestra Telecom.
 Be precise, cite data sources, and never expose subscriber PII in plain text.
 When you are uncertain, say so and propose the safest next step.`;
