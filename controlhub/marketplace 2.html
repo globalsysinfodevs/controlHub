@@ -1,0 +1,1827 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iAlestra — Marketplace</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary:    '#1A2151',
+            secondary:  '#00B8FF',
+            tertiary:   '#9E00BE',
+            'g-dark':   '#5C5B5F',
+            'g-mid':    '#E3E4E8',
+            'g-light':  '#ededed',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', -apple-system, sans-serif; background-color: #ededed; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #ededed; }
+    ::-webkit-scrollbar-thumb { background: #E3E4E8; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #5C5B5F; }
+
+    /* ── Card ── */
+    .agent-card {
+      opacity: 0;
+      animation: cardIn 0.45s ease-out forwards;
+      transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+    }
+    .agent-card:hover { transform: translateY(-4px); box-shadow: 0 16px 48px rgba(26,33,81,.11); }
+    .agent-card.enabled { border-color: rgba(0,184,255,.35) !important; box-shadow: 0 0 0 1px rgba(0,184,255,.2); }
+    .agent-card.enabled:hover { box-shadow: 0 16px 48px rgba(0,184,255,.15); }
+
+    @keyframes cardIn {
+      from { opacity:0; transform:translateY(14px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .agent-card:nth-child(1)  { animation-delay:.04s }
+    .agent-card:nth-child(2)  { animation-delay:.08s }
+    .agent-card:nth-child(3)  { animation-delay:.12s }
+    .agent-card:nth-child(4)  { animation-delay:.16s }
+    .agent-card:nth-child(5)  { animation-delay:.20s }
+    .agent-card:nth-child(6)  { animation-delay:.24s }
+    .agent-card:nth-child(7)  { animation-delay:.28s }
+    .agent-card:nth-child(8)  { animation-delay:.32s }
+    .agent-card:nth-child(9)  { animation-delay:.36s }
+    .agent-card:nth-child(10) { animation-delay:.40s }
+    .agent-card:nth-child(11) { animation-delay:.44s }
+    .agent-card:nth-child(12) { animation-delay:.48s }
+
+    /* ── Toggle ── */
+    .tgl { position:relative; width:42px; height:23px; flex-shrink:0; }
+    .tgl input { display:none; }
+    .tgl-track {
+      position:absolute; inset:0;
+      background:#E3E4E8; border-radius:23px;
+      cursor:pointer; transition:.3s;
+    }
+    .tgl-track::before {
+      content:''; position:absolute;
+      width:17px; height:17px; left:3px; bottom:3px;
+      background:#fff; border-radius:50%;
+      transition:.3s; box-shadow:0 1px 3px rgba(0,0,0,.18);
+    }
+    .tgl input:checked ~ .tgl-track { background:#00B8FF; }
+    .tgl input:checked ~ .tgl-track::before { transform:translateX(19px); }
+
+    /* ── Detail Panel ── */
+    .panel {
+      transform: translateX(105%);
+      transition: transform .36s cubic-bezier(.4,0,.2,1);
+    }
+    .panel.open { transform: translateX(0); }
+
+    /* ── Overlay ── */
+    .overlay {
+      opacity:0; pointer-events:none;
+      transition: opacity .3s ease;
+      backdrop-filter: blur(3px);
+    }
+    .overlay.open { opacity:1; pointer-events:all; }
+
+    /* ── Search ── */
+    .search-input { transition: border-color .2s, box-shadow .2s; }
+    .search-input:focus {
+      outline:none;
+      border-color:#00B8FF;
+      box-shadow:0 0 0 3px rgba(0,184,255,.14);
+    }
+
+    /* ── Category item ── */
+    .cat-item { transition: background .18s, color .18s; }
+    .cat-item.active { background:rgba(0,184,255,.1); font-weight:600; color:#1A2151; }
+    .cat-item.active .cat-dot { background:#00B8FF; }
+    .cat-item:not(.active):hover { background:#ededed; }
+
+    /* ── Filter chip ── */
+    .chip { transition: all .18s; }
+    .chip.active { background:#1A2151; color:#fff; border-color:#1A2151; }
+    .chip:not(.active):hover { border-color:#00B8FF; color:#1A2151; }
+
+    /* ── Token bar ── */
+    .tbar { transition: width 1.2s cubic-bezier(.4,0,.2,1); }
+
+    /* ── NEW badge ── */
+    @keyframes badgePop {
+      0%,100% { transform:scale(1); }
+      50%      { transform:scale(1.07); }
+    }
+    .badge-new { animation: badgePop 2.2s ease-in-out infinite; }
+
+    /* ── Stat card ── */
+    .stat-card { transition: transform .2s, box-shadow .2s; }
+    .stat-card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(26,33,81,.09); }
+
+    /* ── Toast ── */
+    .toast {
+      transform: translateY(100px);
+      opacity:0;
+      transition: all .3s cubic-bezier(.4,0,.2,1);
+    }
+    .toast.show { transform: translateY(0); opacity:1; }
+
+    /* ── Nav link ── */
+    .nav-lnk { position:relative; transition:color .18s; }
+    .nav-lnk.active { color:#00B8FF !important; }
+    .nav-lnk.active::after {
+      content:''; position:absolute; bottom:-4px; left:0; right:0;
+      height:2px; background:#00B8FF; border-radius:2px;
+    }
+
+    /* ── Prompt hover ── */
+    .prompt-item { transition: background .18s; cursor:pointer; }
+    .prompt-item:hover { background:#E3E4E8; }
+
+    /* ── View transitions ── */
+    .view { display:none; }
+    .view.active { display:block; }
+
+    /* ── Analytics ── */
+    .an-card { transition: transform .2s, box-shadow .2s; }
+    .an-card:hover { transform:translateY(-3px); box-shadow:0 12px 32px rgba(26,33,81,.1); }
+    .period-btn { transition: all .18s; }
+    .period-btn.active { background:#1A2151; color:#fff; }
+    .rank-bar { transition: width 1s cubic-bezier(.4,0,.2,1); }
+
+    /* ── Chat ── */
+    #chatView {
+      position:fixed; inset:0; z-index:60;
+      display:none;
+      background:#ededed;
+    }
+    #chatView.open { display:flex; flex-direction:column; }
+
+    /* message bubble in */
+    @keyframes msgIn {
+      from { opacity:0; transform:translateY(8px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .msg { animation: msgIn .3s ease-out forwards; }
+
+    /* typing dots */
+    @keyframes dot { 0%,80%,100%{transform:scale(.6);opacity:.4} 40%{transform:scale(1);opacity:1} }
+    .typing-dot:nth-child(1){animation:dot 1.2s .0s infinite}
+    .typing-dot:nth-child(2){animation:dot 1.2s .2s infinite}
+    .typing-dot:nth-child(3){animation:dot 1.2s .4s infinite}
+
+    /* chat input focus */
+    #chatInput:focus { outline:none; }
+
+    /* session item */
+    .sess-item { transition: background .15s; cursor:pointer; }
+    .sess-item:hover { background:rgba(255,255,255,.08); }
+    .sess-item.active-sess { background:rgba(0,184,255,.15); }
+
+    /* chart container height fix */
+    .chart-box { position:relative; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- ════════════════════════════════════════
+     NAVBAR
+════════════════════════════════════════ -->
+<nav class="bg-primary sticky top-0 z-40 shadow-xl">
+  <div class="flex items-center justify-between px-6 h-16">
+
+    <!-- Brand + Nav links -->
+    <div class="flex items-center gap-8">
+      <div class="flex items-center gap-3">
+        <img src="Estrella alestra.png" alt="iAlestra" class="w-9 h-9 object-contain" style="filter: brightness(0) invert(48%) sepia(80%) saturate(500%) hue-rotate(165deg) brightness(110%);">
+        <span class="text-white font-bold text-lg tracking-tight">iAlestra<span class="text-secondary">Agentic HUB</span></span>
+      </div>
+      <div class="hidden md:flex items-center gap-6">
+        <a href="#" onclick="showView('marketplace',this)" class="nav-lnk active text-sm text-white/80 hover:text-white pb-1">Marketplace</a>
+        <a href="#" onclick="showView('analytics',this)" class="nav-lnk text-sm text-white/45 hover:text-white pb-1">Analytics</a>
+        <a href="#" onclick="showView('config',this)" class="nav-lnk text-sm text-white/45 hover:text-white pb-1">Configuraci&#243;n</a>
+      </div>
+    </div>
+
+    <!-- Right controls -->
+    <div class="flex items-center gap-3">
+      <div class="hidden md:flex items-center gap-1.5 bg-white/10 rounded-full px-3 py-1.5">
+        <div class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></div>
+        <span class="text-white/80 text-xs font-medium" id="navBadge">Plan Pro · 4 / 8 agentes</span>
+      </div>
+      <button class="relative w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span class="absolute top-0.5 right-0.5 w-2 h-2 bg-tertiary rounded-full border border-primary"></span>
+      </button>
+      <div class="flex items-center gap-2 cursor-pointer">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-tertiary flex items-center justify-center">
+          <span class="text-white text-xs font-bold">AC</span>
+        </div>
+        <div class="hidden md:block">
+          <p class="text-white text-xs font-semibold leading-tight">Acme Corp</p>
+          <p class="text-white/45 text-xs">Admin</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════════
+     LAYOUT
+════════════════════════════════════════ -->
+<div id="mainLayout" class="flex min-h-[calc(100vh-64px)]">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="hidden md:block w-60 bg-white border-r border-g-mid flex-shrink-0 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto">
+    <div class="p-4 space-y-5">
+
+      <!-- Categories -->
+      <div>
+        <p class="text-[10px] font-semibold text-g-dark uppercase tracking-widest px-3 mb-2">Categorías</p>
+        <ul class="space-y-0.5" id="categoryList">
+          <li><button onclick="filterCategory('all',this)" class="cat-item active w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-primary">
+            <span class="cat-dot w-2 h-2 rounded-full bg-secondary flex-shrink-0"></span>
+            <span>Todos</span>
+            <span class="ml-auto text-xs text-g-dark bg-g-light rounded-full px-2 py-0.5">12</span>
+          </button></li>
+          <li><button onclick="filterCategory('Finanzas',this)" class="cat-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-g-dark">
+            <span class="cat-dot w-2 h-2 rounded-full bg-g-mid flex-shrink-0"></span>
+            <span>Finanzas</span>
+            <span class="ml-auto text-xs text-g-dark bg-g-light rounded-full px-2 py-0.5">3</span>
+          </button></li>
+          <li><button onclick="filterCategory('Marketing',this)" class="cat-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-g-dark">
+            <span class="cat-dot w-2 h-2 rounded-full bg-g-mid flex-shrink-0"></span>
+            <span>Marketing</span>
+            <span class="ml-auto text-xs text-g-dark bg-g-light rounded-full px-2 py-0.5">3</span>
+          </button></li>
+          <li><button onclick="filterCategory('RRHH',this)" class="cat-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-g-dark">
+            <span class="cat-dot w-2 h-2 rounded-full bg-g-mid flex-shrink-0"></span>
+            <span>Recursos Humanos</span>
+            <span class="ml-auto text-xs text-g-dark bg-g-light rounded-full px-2 py-0.5">2</span>
+          </button></li>
+          <li><button onclick="filterCategory('Legal',this)" class="cat-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-g-dark">
+            <span class="cat-dot w-2 h-2 rounded-full bg-g-mid flex-shrink-0"></span>
+            <span>Legal</span>
+            <span class="ml-auto text-xs text-g-dark bg-g-light rounded-full px-2 py-0.5">2</span>
+          </button></li>
+          <li><button onclick="filterCategory('Operaciones',this)" class="cat-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-g-dark">
+            <span class="cat-dot w-2 h-2 rounded-full bg-g-mid flex-shrink-0"></span>
+            <span>Operaciones</span>
+            <span class="ml-auto text-xs text-g-dark bg-g-light rounded-full px-2 py-0.5">1</span>
+          </button></li>
+          <li><button onclick="filterCategory('CS',this)" class="cat-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-g-dark">
+            <span class="cat-dot w-2 h-2 rounded-full bg-g-mid flex-shrink-0"></span>
+            <span>Customer Success</span>
+            <span class="ml-auto text-xs text-g-dark bg-g-light rounded-full px-2 py-0.5">1</span>
+          </button></li>
+        </ul>
+      </div>
+
+      <div class="border-t border-g-mid"></div>
+
+      <!-- Token usage -->
+      <div class="px-1">
+        <p class="text-[10px] font-semibold text-g-dark uppercase tracking-widest px-2 mb-3">Uso de Tokens</p>
+        <div class="flex justify-between text-xs mb-1.5 px-2">
+          <span class="text-g-dark">Este mes</span>
+          <span class="font-semibold text-primary">1.2M / 5M</span>
+        </div>
+        <div class="w-full bg-g-mid rounded-full h-1.5 mx-2" style="width:calc(100% - 1rem)">
+          <div class="tbar bg-secondary h-1.5 rounded-full" style="width:0%" id="tokenBar"></div>
+        </div>
+        <p class="text-xs text-g-dark mt-2 px-2">24% utilizado · reinicia en 12 días</p>
+      </div>
+
+      <div class="border-t border-g-mid"></div>
+
+      <!-- Quick stats -->
+      <div class="space-y-3 px-3">
+        <div class="flex justify-between items-center">
+          <span class="text-xs text-g-dark">Agentes activos</span>
+          <span class="text-xs font-semibold text-primary" id="sidebarActive">4</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-xs text-g-dark">Consultas hoy</span>
+          <span class="text-xs font-semibold text-primary">247</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-xs text-g-dark">Tiempo promedio</span>
+          <span class="text-xs font-semibold text-primary">1.8 s</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-xs text-g-dark">Disponibilidad</span>
+          <span class="text-xs font-semibold text-green-500">99.8%</span>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="flex-1 overflow-auto">
+
+    <!-- Stats bar -->
+    <div class="bg-white border-b border-g-mid px-6 py-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+        <div class="stat-card flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center flex-shrink-0">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#00B8FF" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="#00B8FF" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-xl font-bold text-primary leading-none" id="statEnabled">4</p>
+            <p class="text-xs text-g-dark mt-0.5">Agentes habilitados</p>
+          </div>
+        </div>
+
+        <div class="stat-card flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center flex-shrink-0">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="#9E00BE" stroke-width="2"/>
+              <path d="M12 6v6l4 2" stroke="#9E00BE" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-xl font-bold text-primary leading-none">247</p>
+            <p class="text-xs text-g-dark mt-0.5">Consultas hoy</p>
+          </div>
+        </div>
+
+        <div class="stat-card flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-primary/8 flex items-center justify-center flex-shrink-0" style="background:rgba(26,33,81,.08)">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="#1A2151" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-xl font-bold text-primary leading-none">1.2M</p>
+            <p class="text-xs text-g-dark mt-0.5">Tokens consumidos</p>
+          </div>
+        </div>
+
+        <div class="stat-card flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+              <polyline points="22 4 12 14.01 9 11.01" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-xl font-bold text-primary leading-none">99.8%</p>
+            <p class="text-xs text-g-dark mt-0.5">Disponibilidad</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Search + Filters -->
+    <div class="px-6 pt-5 pb-3">
+      <div class="flex flex-col md:flex-row gap-3 items-start md:items-center">
+        <!-- Search -->
+        <div class="relative flex-1 max-w-sm">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2.2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" placeholder="Buscar agente..."
+            class="search-input w-full bg-white border border-g-mid rounded-xl pl-9 pr-4 py-2.5 text-sm text-primary placeholder-g-dark"
+            oninput="applyFilters()" id="searchInput">
+        </div>
+        <!-- Chips -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="filterStatus('all',this)"      class="chip active text-xs px-3 py-1.5 rounded-full border border-g-mid bg-white text-g-dark font-medium">Todos</button>
+          <button onclick="filterStatus('enabled',this)"  class="chip text-xs px-3 py-1.5 rounded-full border border-g-mid bg-white text-g-dark font-medium">Habilitados</button>
+          <button onclick="filterStatus('disabled',this)" class="chip text-xs px-3 py-1.5 rounded-full border border-g-mid bg-white text-g-dark font-medium">Disponibles</button>
+          <button onclick="filterStatus('new',this)"      class="chip text-xs px-3 py-1.5 rounded-full border border-g-mid bg-white text-g-dark font-medium">✨ Nuevos</button>
+        </div>
+        <!-- Sort -->
+        <select class="ml-auto text-xs bg-white border border-g-mid rounded-xl px-3 py-2.5 text-g-dark focus:outline-none focus:border-secondary transition-colors">
+          <option>Más relevante</option>
+          <option>Más usado</option>
+          <option>Reciente</option>
+          <option>A–Z</option>
+        </select>
+      </div>
+      <p class="text-xs text-g-dark mt-2.5">
+        Mostrando <span class="font-semibold text-primary" id="visibleCount">12</span> agentes
+      </p>
+    </div>
+
+    <!-- Agent Grid -->
+    <div class="px-6 pb-10">
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="agentGrid">
+
+        <!-- ══ CARD 1 · Analista P&L (ENABLED) ══ -->
+        <div class="agent-card enabled bg-white rounded-2xl border p-5 cursor-pointer"
+             data-cat="Finanzas" data-on="true" data-new="false"
+             onclick="openDetail(0)">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,rgba(0,184,255,.18),rgba(0,184,255,.05))">
+                <span class="text-2xl">📊</span>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-semibold text-primary text-sm">Analista P&L</h3>
+                  <div class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></div>
+                </div>
+                <span class="inline-block text-xs bg-secondary/10 text-secondary rounded-full px-2 py-0.5 font-medium mt-0.5">Finanzas</span>
+              </div>
+            </div>
+            <label class="tgl" onclick="event.stopPropagation()">
+              <input type="checkbox" checked onchange="toggleAgent(this)">
+              <span class="tgl-track"></span>
+            </label>
+          </div>
+          <p class="text-xs text-g-dark leading-relaxed mb-4">Analiza estados de pérdidas y ganancias, identifica variaciones, tendencias y genera insights accionables sobre la rentabilidad del negocio.</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Excel Parser</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Chart Generator</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">DB Query</span>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-g-mid">
+            <span class="text-xs text-g-dark flex items-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Chat + Gráficas
+            </span>
+            <span class="text-xs font-semibold text-secondary">GPT-4o</span>
+          </div>
+        </div>
+
+        <!-- ══ CARD 2 · Análisis de Competencia (ENABLED) ══ -->
+        <div class="agent-card enabled bg-white rounded-2xl border p-5 cursor-pointer"
+             data-cat="Marketing" data-on="true" data-new="false"
+             onclick="openDetail(1)">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,rgba(158,0,190,.18),rgba(158,0,190,.05))">
+                <span class="text-2xl">🎯</span>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-semibold text-primary text-sm">Análisis de Competencia</h3>
+                  <div class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></div>
+                </div>
+                <span class="inline-block text-xs bg-tertiary/10 text-tertiary rounded-full px-2 py-0.5 font-medium mt-0.5">Marketing</span>
+              </div>
+            </div>
+            <label class="tgl" onclick="event.stopPropagation()">
+              <input type="checkbox" checked onchange="toggleAgent(this)">
+              <span class="tgl-track"></span>
+            </label>
+          </div>
+          <p class="text-xs text-g-dark leading-relaxed mb-4">Monitorea competidores, analiza posicionamiento, precios y estrategias. Genera reportes comparativos y detecta oportunidades de mercado.</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Web Scraper</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Report Builder</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">News API</span>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-g-mid">
+            <span class="text-xs text-g-dark flex items-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Chat + PDF Export
+            </span>
+            <span class="text-xs font-semibold text-secondary">Claude 3.5</span>
+          </div>
+        </div>
+
+        <!-- ══ CARD 3 · Talent Analytics (ENABLED) ══ -->
+        <div class="agent-card enabled bg-white rounded-2xl border p-5 cursor-pointer"
+             data-cat="RRHH" data-on="true" data-new="false"
+             onclick="openDetail(2)">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,rgba(26,33,81,.14),rgba(26,33,81,.04))">
+                <span class="text-2xl">👥</span>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-semibold text-primary text-sm">Talent Analytics</h3>
+                  <div class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></div>
+                </div>
+                <span class="inline-block text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium mt-0.5">RRHH</span>
+              </div>
+            </div>
+            <label class="tgl" onclick="event.stopPropagation()">
+              <input type="checkbox" checked onchange="toggleAgent(this)">
+              <span class="tgl-track"></span>
+            </label>
+          </div>
+          <p class="text-xs text-g-dark leading-relaxed mb-4">Analiza métricas de desempeño, rotación de personal y clima organizacional. Genera recomendaciones para gestión del talento.</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">HR System API</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Chart Generator</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Surveys</span>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-g-mid">
+            <span class="text-xs text-g-dark flex items-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Chat + Gráficas BI
+            </span>
+            <span class="text-xs font-semibold text-secondary">GPT-4o</span>
+          </div>
+        </div>
+
+        <!-- ══ CARD 4 · Churn Predictor (ENABLED) ══ -->
+        <div class="agent-card enabled bg-white rounded-2xl border p-5 cursor-pointer"
+             data-cat="CS" data-on="true" data-new="false"
+             onclick="openDetail(3)">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center flex-shrink-0">
+                <span class="text-2xl">🔮</span>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-semibold text-primary text-sm">Churn Predictor</h3>
+                  <div class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></div>
+                </div>
+                <span class="inline-block text-xs bg-orange-100 text-orange-600 rounded-full px-2 py-0.5 font-medium mt-0.5">Customer Success</span>
+              </div>
+            </div>
+            <label class="tgl" onclick="event.stopPropagation()">
+              <input type="checkbox" checked onchange="toggleAgent(this)">
+              <span class="tgl-track"></span>
+            </label>
+          </div>
+          <p class="text-xs text-g-dark leading-relaxed mb-4">Predice la probabilidad de abandono de clientes, identifica señales de riesgo y sugiere acciones de retención personalizadas.</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">CRM API</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">ML Predictor</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Alerts</span>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-g-mid">
+            <span class="text-xs text-g-dark flex items-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Chat + Tablas
+            </span>
+            <span class="text-xs font-semibold text-secondary">GPT-4o</span>
+          </div>
+        </div>
+
+        <!-- ══ CARD 5 · Forecast Presupuestal (DISABLED) ══ -->
+        <div class="agent-card bg-white rounded-2xl border border-g-mid p-5 cursor-pointer"
+             data-cat="Finanzas" data-on="false" data-new="false"
+             onclick="openDetail(4)">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-g-light flex items-center justify-center flex-shrink-0">
+                <span class="text-2xl opacity-50">📈</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-primary text-sm">Forecast Presupuestal</h3>
+                <span class="inline-block text-xs bg-secondary/10 text-secondary rounded-full px-2 py-0.5 font-medium mt-0.5">Finanzas</span>
+              </div>
+            </div>
+            <label class="tgl" onclick="event.stopPropagation()">
+              <input type="checkbox" onchange="toggleAgent(this)">
+              <span class="tgl-track"></span>
+            </label>
+          </div>
+          <p class="text-xs text-g-dark leading-relaxed mb-4">Genera proyecciones presupuestales basadas en datos históricos, tendencias de mercado y variables macroeconómicas configurables.</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Time Series</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Excel Export</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">ERP API</span>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-g-mid">
+            <span class="text-xs text-g-dark flex items-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Chat + Gráficas
+            </span>
+            <span class="text-xs text-g-dark font-medium">GPT-4o</span>
+          </div>
+        </div>
+
+        <!-- ══ CARD 6 · Optimizador Campañas (DISABLED) ══ -->
+        <div class="agent-card bg-white rounded-2xl border border-g-mid p-5 cursor-pointer"
+             data-cat="Marketing" data-on="false" data-new="false"
+             onclick="openDetail(5)">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-g-light flex items-center justify-center flex-shrink-0">
+                <span class="text-2xl opacity-50">📣</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-primary text-sm">Optimizador de Campañas</h3>
+                <span class="inline-block text-xs bg-tertiary/10 text-tertiary rounded-full px-2 py-0.5 font-medium mt-0.5">Marketing</span>
+              </div>
+            </div>
+            <label class="tgl" onclick="event.stopPropagation()">
+              <input type="checkbox" onchange="toggleAgent(this)">
+              <span class="tgl-track"></span>
+            </label>
+          </div>
+          <p class="text-xs text-g-dark leading-relaxed mb-4">Analiza rendimiento de campañas digitales, optimiza segmentación y presupuesto para maximizar el ROI publicitario.</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Google Ads API</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Meta Ads API</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Analytics</span>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-g-mid">
+            <span class="text-xs text-g-dark flex items-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Chat + BI Dashboard
+            </span>
+            <span class="text-xs text-g-dark font-medium">GPT-4o</span>
+          </div>
+        </div>
+
+        <!-- ══ CARD 7 · Revisión de Contratos (DISABLED) ══ -->
+        <div class="agent-card bg-white rounded-2xl border border-g-mid p-5 cursor-pointer"
+             data-cat="Legal" data-on="false" data-new="false"
+             onclick="openDetail(6)">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-g-light flex items-center justify-center flex-shrink-0">
+                <span class="text-2xl opacity-50">⚖️</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-primary text-sm">Revisión de Contratos</h3>
+                <span class="inline-block text-xs bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5 font-medium mt-0.5">Legal</span>
+              </div>
+            </div>
+            <label class="tgl" onclick="event.stopPropagation()">
+              <input type="checkbox" onchange="toggleAgent(this)">
+              <span class="tgl-track"></span>
+            </label>
+          </div>
+          <p class="text-xs text-g-dark leading-relaxed mb-4">Revisa contratos, identifica cláusulas de riesgo e inconsistencias, sugiere modificaciones alineadas con la normativa aplicable.</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">PDF Parser</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Legal DB</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Risk Scorer</span>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-g-mid">
+            <span class="text-xs text-g-dark flex items-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Chat + PDF Export
+            </span>
+            <span class="text-xs text-g-dark font-medium">Claude 3.5</span>
+          </div>
+        </div>
+
+        <!-- ══ CARD 8 · Supply Chain (DISABLED) ══ -->
+        <div class="agent-card bg-white rounded-2xl border border-g-mid p-5 cursor-pointer"
+             data-cat="Operaciones" data-on="false" data-new="false"
+             onclick="openDetail(7)">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-g-light flex items-center justify-center flex-shrink-0">
+                <span class="text-2xl opacity-50">🔗</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-primary text-sm">Supply Chain Optimizer</h3>
+                <span class="inline-block text-xs bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-medium mt-0.5">Operaciones</span>
+              </div>
+            </div>
+            <label class="tgl" onclick="event.stopPropagation()">
+              <input type="checkbox" onchange="toggleAgent(this)">
+              <span class="tgl-track"></span>
+            </label>
+          </div>
+          <p class="text-xs text-g-dark leading-relaxed mb-4">Optimiza la cadena de suministro, detecta cuellos de botella, gestiona inventarios y predice disrupciones logísticas.</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">ERP Connector</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">IoT Data</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Geolocation</span>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-g-mid">
+            <span class="text-xs text-g-dark flex items-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Flow + Dashboard
+            </span>
+            <span class="text-xs text-g-dark font-medium">GPT-4o</span>
+          </div>
+        </div>
+
+        <!-- ══ CARD 9 · Cash Flow (DISABLED) ══ -->
+        <div class="agent-card bg-white rounded-2xl border border-g-mid p-5 cursor-pointer"
+             data-cat="Finanzas" data-on="false" data-new="false"
+             onclick="openDetail(8)">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-g-light flex items-center justify-center flex-shrink-0">
+                <span class="text-2xl opacity-50">💰</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-primary text-sm">Cash Flow Predictor</h3>
+                <span class="inline-block text-xs bg-secondary/10 text-secondary rounded-full px-2 py-0.5 font-medium mt-0.5">Finanzas</span>
+              </div>
+            </div>
+            <label class="tgl" onclick="event.stopPropagation()">
+              <input type="checkbox" onchange="toggleAgent(this)">
+              <span class="tgl-track"></span>
+            </label>
+          </div>
+          <p class="text-xs text-g-dark leading-relaxed mb-4">Proyecta flujos de caja a 30, 60 y 90 días, detecta riesgos de liquidez y recomienda acciones preventivas.</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Bank API</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Time Series</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Alerts</span>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-g-mid">
+            <span class="text-xs text-g-dark flex items-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Chat + Gráficas
+            </span>
+            <span class="text-xs text-g-dark font-medium">GPT-4o</span>
+          </div>
+        </div>
+
+        <!-- ══ CARD 10 · Performance Review (DISABLED) ══ -->
+        <div class="agent-card bg-white rounded-2xl border border-g-mid p-5 cursor-pointer"
+             data-cat="RRHH" data-on="false" data-new="false"
+             onclick="openDetail(9)">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-g-light flex items-center justify-center flex-shrink-0">
+                <span class="text-2xl opacity-50">⭐</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-primary text-sm">Performance Review</h3>
+                <span class="inline-block text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium mt-0.5">RRHH</span>
+              </div>
+            </div>
+            <label class="tgl" onclick="event.stopPropagation()">
+              <input type="checkbox" onchange="toggleAgent(this)">
+              <span class="tgl-track"></span>
+            </label>
+          </div>
+          <p class="text-xs text-g-dark leading-relaxed mb-4">Automatiza evaluaciones de desempeño con análisis objetivos basados en datos de productividad, OKRs y feedback 360°.</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">HR System API</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">OKR Tracker</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Feedback Bot</span>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-g-mid">
+            <span class="text-xs text-g-dark flex items-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Chat + Tablas
+            </span>
+            <span class="text-xs text-g-dark font-medium">GPT-4o</span>
+          </div>
+        </div>
+
+        <!-- ══ CARD 11 · SEO Analyzer (NEW) ══ -->
+        <div class="agent-card bg-white rounded-2xl border border-tertiary/25 p-5 cursor-pointer"
+             data-cat="Marketing" data-on="false" data-new="true"
+             onclick="openDetail(10)">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,rgba(158,0,190,.15),rgba(158,0,190,.04))">
+                <span class="text-2xl">🔍</span>
+              </div>
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="font-semibold text-primary text-sm">SEO Content Analyzer</h3>
+                  <span class="badge-new inline-block text-xs bg-tertiary text-white rounded-full px-2 py-0.5 font-semibold">Nuevo</span>
+                </div>
+                <span class="inline-block text-xs bg-tertiary/10 text-tertiary rounded-full px-2 py-0.5 font-medium mt-0.5">Marketing</span>
+              </div>
+            </div>
+            <label class="tgl" onclick="event.stopPropagation()">
+              <input type="checkbox" onchange="toggleAgent(this)">
+              <span class="tgl-track"></span>
+            </label>
+          </div>
+          <p class="text-xs text-g-dark leading-relaxed mb-4">Analiza contenido para SEO, identifica keywords de alto impacto, genera sugerencias de optimización y monitorea rankings.</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">SEMrush API</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Search Console</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Content AI</span>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-g-mid">
+            <span class="text-xs text-g-dark flex items-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Chat + Reportes
+            </span>
+            <span class="text-xs text-g-dark font-medium">GPT-4o</span>
+          </div>
+        </div>
+
+        <!-- ══ CARD 12 · Compliance Monitor (NEW) ══ -->
+        <div class="agent-card bg-white rounded-2xl border border-tertiary/25 p-5 cursor-pointer"
+             data-cat="Legal" data-on="false" data-new="true"
+             onclick="openDetail(11)">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-yellow-50 flex items-center justify-center flex-shrink-0">
+                <span class="text-2xl">🛡️</span>
+              </div>
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="font-semibold text-primary text-sm">Compliance Monitor</h3>
+                  <span class="badge-new inline-block text-xs bg-tertiary text-white rounded-full px-2 py-0.5 font-semibold">Nuevo</span>
+                </div>
+                <span class="inline-block text-xs bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5 font-medium mt-0.5">Legal</span>
+              </div>
+            </div>
+            <label class="tgl" onclick="event.stopPropagation()">
+              <input type="checkbox" onchange="toggleAgent(this)">
+              <span class="tgl-track"></span>
+            </label>
+          </div>
+          <p class="text-xs text-g-dark leading-relaxed mb-4">Monitorea cumplimiento regulatorio, detecta desviaciones normativas y genera alertas y reportes para auditorías.</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Reg Tracker</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Doc Scanner</span>
+            <span class="text-xs bg-g-light text-g-dark rounded-lg px-2 py-1">Alert Engine</span>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-g-mid">
+            <span class="text-xs text-g-dark flex items-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Flujo + Alertas
+            </span>
+            <span class="text-xs text-g-dark font-medium">Claude 3.5</span>
+          </div>
+        </div>
+
+      </div><!-- /grid -->
+
+      <!-- Empty state -->
+      <div id="emptyState" class="hidden flex-col items-center justify-center py-24">
+        <div class="w-16 h-16 rounded-2xl bg-g-mid flex items-center justify-center mb-4">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="1.5">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+        </div>
+        <p class="text-primary font-semibold">Sin resultados</p>
+        <p class="text-sm text-g-dark mt-1">Intenta con otros filtros</p>
+      </div>
+
+    </div><!-- /px-6 -->
+  </main>
+</div><!-- /layout -->
+
+<!-- ════════════════════════════════════════
+     ANALYTICS VIEW
+════════════════════════════════════════ -->
+<div id="analyticsView" class="view min-h-[calc(100vh-64px)]">
+
+  <!-- Header -->
+  <div class="bg-white border-b border-g-mid px-8 py-5 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold text-primary">Analytics</h1>
+      <p class="text-xs text-g-dark mt-0.5">Consumo, rendimiento y costos de tus agentes · Mayo 2025</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="setPeriod('7d',this)"  class="period-btn text-xs px-3 py-1.5 rounded-lg border border-g-mid bg-white text-g-dark">7 días</button>
+      <button onclick="setPeriod('30d',this)" class="period-btn active text-xs px-3 py-1.5 rounded-lg border border-g-mid bg-white text-g-dark">30 días</button>
+      <button onclick="setPeriod('90d',this)" class="period-btn text-xs px-3 py-1.5 rounded-lg border border-g-mid bg-white text-g-dark">90 días</button>
+      <button class="ml-2 flex items-center gap-1.5 text-xs bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exportar reporte
+      </button>
+    </div>
+  </div>
+
+  <div class="p-8 space-y-6">
+
+    <!-- KPI Row -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="an-card bg-white rounded-2xl p-5 border border-g-mid">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs text-g-dark font-medium">Tokens totales</span>
+          <div class="w-8 h-8 rounded-xl bg-secondary/10 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="#00B8FF" stroke-width="2" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+        <p class="text-2xl font-bold text-primary">1.24M</p>
+        <p class="text-xs text-green-500 mt-1 flex items-center gap-1">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+          +12% vs mes anterior
+        </p>
+      </div>
+      <div class="an-card bg-white rounded-2xl p-5 border border-g-mid">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs text-g-dark font-medium">Costo estimado</span>
+          <div class="w-8 h-8 rounded-xl bg-tertiary/10 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#9E00BE" stroke-width="2"/><path d="M12 6v12M9 9h4.5a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3H15" stroke="#9E00BE" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+        <p class="text-2xl font-bold text-primary">$38.40</p>
+        <p class="text-xs text-red-400 mt-1 flex items-center gap-1">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 9 12 15 6 9"/></svg>
+          +8% vs mes anterior
+        </p>
+      </div>
+      <div class="an-card bg-white rounded-2xl p-5 border border-g-mid">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs text-g-dark font-medium">Total consultas</span>
+          <div class="w-8 h-8 rounded-xl flex items-center justify-center" style="background:rgba(26,33,81,.08)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#1A2151" stroke-width="2"/></svg>
+          </div>
+        </div>
+        <p class="text-2xl font-bold text-primary">4,831</p>
+        <p class="text-xs text-green-500 mt-1 flex items-center gap-1">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+          +23% vs mes anterior
+        </p>
+      </div>
+      <div class="an-card bg-white rounded-2xl p-5 border border-g-mid">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs text-g-dark font-medium">Latencia promedio</span>
+          <div class="w-8 h-8 rounded-xl bg-green-50 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#22c55e" stroke-width="2"/><path d="M12 6v6l3 3" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+        <p class="text-2xl font-bold text-primary">1.76s</p>
+        <p class="text-xs text-green-500 mt-1 flex items-center gap-1">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+          −0.3s vs mes anterior
+        </p>
+      </div>
+    </div>
+
+    <!-- Charts row 1 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+      <!-- Token timeline (span 2) -->
+      <div class="lg:col-span-2 an-card bg-white rounded-2xl p-5 border border-g-mid">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="font-semibold text-primary text-sm">Consumo de tokens por día</h3>
+            <p class="text-xs text-g-dark mt-0.5">Últimos 30 días</p>
+          </div>
+          <div class="flex items-center gap-3 text-xs text-g-dark">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-secondary inline-block"></span>Tokens</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-tertiary inline-block"></span>Consultas</span>
+          </div>
+        </div>
+        <div class="chart-box" style="height:220px">
+          <canvas id="chartTimeline"></canvas>
+        </div>
+      </div>
+
+      <!-- Donut cost breakdown -->
+      <div class="an-card bg-white rounded-2xl p-5 border border-g-mid">
+        <h3 class="font-semibold text-primary text-sm mb-1">Costo por agente</h3>
+        <p class="text-xs text-g-dark mb-4">Distribución del mes</p>
+        <div class="chart-box" style="height:160px">
+          <canvas id="chartDonut"></canvas>
+        </div>
+        <div class="mt-4 space-y-2" id="donutLegend"></div>
+      </div>
+    </div>
+
+    <!-- Charts row 2 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+      <!-- Queries by agent -->
+      <div class="an-card bg-white rounded-2xl p-5 border border-g-mid">
+        <h3 class="font-semibold text-primary text-sm mb-1">Consultas por agente</h3>
+        <p class="text-xs text-g-dark mb-5">Agentes habilitados este mes</p>
+        <div id="rankList" class="space-y-3"></div>
+      </div>
+
+      <!-- Latency bar chart -->
+      <div class="an-card bg-white rounded-2xl p-5 border border-g-mid">
+        <h3 class="font-semibold text-primary text-sm mb-1">Latencia promedio por agente</h3>
+        <p class="text-xs text-g-dark mb-4">Segundos · últimos 30 días</p>
+        <div class="chart-box" style="height:220px">
+          <canvas id="chartLatency"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Token budget bar -->
+    <div class="an-card bg-white rounded-2xl p-5 border border-g-mid">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="font-semibold text-primary text-sm">Presupuesto de tokens</h3>
+          <p class="text-xs text-g-dark mt-0.5">Plan Pro · 5,000,000 tokens / mes</p>
+        </div>
+        <span class="text-xs bg-secondary/10 text-secondary font-semibold px-3 py-1 rounded-full">24% utilizado</span>
+      </div>
+      <div class="w-full bg-g-mid rounded-full h-3 mb-3">
+        <div class="h-3 rounded-full bg-gradient-to-r from-secondary to-tertiary" style="width:24%;transition:width 1.5s ease"></div>
+      </div>
+      <div class="grid grid-cols-3 gap-4 text-center">
+        <div><p class="text-sm font-bold text-primary">1.24M</p><p class="text-xs text-g-dark">Consumido</p></div>
+        <div><p class="text-sm font-bold text-primary">3.76M</p><p class="text-xs text-g-dark">Disponible</p></div>
+        <div><p class="text-sm font-bold text-primary">12 días</p><p class="text-xs text-g-dark">Hasta reinicio</p></div>
+      </div>
+    </div>
+
+    <!-- Activity table -->
+    <div class="an-card bg-white rounded-2xl border border-g-mid overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-g-mid">
+        <h3 class="font-semibold text-primary text-sm">Últimas sesiones</h3>
+        <button class="text-xs text-secondary hover:underline">Ver todas</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="border-b border-g-mid">
+              <th class="text-left px-5 py-3 text-g-dark font-semibold">Agente</th>
+              <th class="text-left px-5 py-3 text-g-dark font-semibold">Usuario</th>
+              <th class="text-left px-5 py-3 text-g-dark font-semibold">Tokens</th>
+              <th class="text-left px-5 py-3 text-g-dark font-semibold">Latencia</th>
+              <th class="text-left px-5 py-3 text-g-dark font-semibold">Fecha</th>
+              <th class="text-left px-5 py-3 text-g-dark font-semibold">Estado</th>
+            </tr>
+          </thead>
+          <tbody id="activityTable">
+            <tr class="border-b border-g-mid hover:bg-g-light transition-colors">
+              <td class="px-5 py-3"><div class="flex items-center gap-2"><span>📊</span><span class="font-medium text-primary">Analista P&L</span></div></td>
+              <td class="px-5 py-3 text-g-dark">Ana García</td>
+              <td class="px-5 py-3 text-primary font-medium">14,230</td>
+              <td class="px-5 py-3 text-g-dark">1.2s</td>
+              <td class="px-5 py-3 text-g-dark">Hoy, 10:42</td>
+              <td class="px-5 py-3"><span class="bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-medium">Exitoso</span></td>
+            </tr>
+            <tr class="border-b border-g-mid hover:bg-g-light transition-colors">
+              <td class="px-5 py-3"><div class="flex items-center gap-2"><span>🎯</span><span class="font-medium text-primary">Análisis Competencia</span></div></td>
+              <td class="px-5 py-3 text-g-dark">Luis Torres</td>
+              <td class="px-5 py-3 text-primary font-medium">9,810</td>
+              <td class="px-5 py-3 text-g-dark">2.4s</td>
+              <td class="px-5 py-3 text-g-dark">Hoy, 09:17</td>
+              <td class="px-5 py-3"><span class="bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-medium">Exitoso</span></td>
+            </tr>
+            <tr class="border-b border-g-mid hover:bg-g-light transition-colors">
+              <td class="px-5 py-3"><div class="flex items-center gap-2"><span>👥</span><span class="font-medium text-primary">Talent Analytics</span></div></td>
+              <td class="px-5 py-3 text-g-dark">María López</td>
+              <td class="px-5 py-3 text-primary font-medium">6,540</td>
+              <td class="px-5 py-3 text-g-dark">1.9s</td>
+              <td class="px-5 py-3 text-g-dark">Ayer, 17:53</td>
+              <td class="px-5 py-3"><span class="bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-medium">Exitoso</span></td>
+            </tr>
+            <tr class="border-b border-g-mid hover:bg-g-light transition-colors">
+              <td class="px-5 py-3"><div class="flex items-center gap-2"><span>🔮</span><span class="font-medium text-primary">Churn Predictor</span></div></td>
+              <td class="px-5 py-3 text-g-dark">Carlos Ruiz</td>
+              <td class="px-5 py-3 text-primary font-medium">21,400</td>
+              <td class="px-5 py-3 text-g-dark">1.6s</td>
+              <td class="px-5 py-3 text-g-dark">Ayer, 15:20</td>
+              <td class="px-5 py-3"><span class="bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5 font-medium">Timeout</span></td>
+            </tr>
+            <tr class="hover:bg-g-light transition-colors">
+              <td class="px-5 py-3"><div class="flex items-center gap-2"><span>📊</span><span class="font-medium text-primary">Analista P&L</span></div></td>
+              <td class="px-5 py-3 text-g-dark">Ana García</td>
+              <td class="px-5 py-3 text-primary font-medium">8,760</td>
+              <td class="px-5 py-3 text-g-dark">1.1s</td>
+              <td class="px-5 py-3 text-g-dark">Ayer, 11:05</td>
+              <td class="px-5 py-3"><span class="bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-medium">Exitoso</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /p-8 -->
+</div><!-- /analyticsView -->
+
+
+  <!-- ════════════════════════════════════════
+     CONFIG VIEW
+  ════════════════════════════════════════ -->
+  <div id="configView" class="view min-h-[calc(100vh-64px)]">
+
+  <!-- Header -->
+  <div class="bg-white border-b border-g-mid px-8 py-5">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold text-primary">Configuraci&#243;n</h1>
+        <p class="text-xs text-g-dark mt-0.5">Gestiona tu cuenta, integraciones y preferencias de Agentes</p>
+      </div>
+      <button onclick="saveAllSettings()" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all hover:shadow-lg">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Guardar cambios
+      </button>
+    </div>
+    <!-- Tabs -->
+    <div class="flex items-center gap-0 mt-5 border-b border-g-mid -mb-5 overflow-x-auto">
+      <button onclick="showCfgTab('general',this)" class="cfg-tab active text-sm text-g-dark px-5 py-3 whitespace-nowrap">General</button>
+      <button onclick="showCfgTab('apikeys',this)" class="cfg-tab text-sm text-g-dark px-5 py-3 whitespace-nowrap">Proveedores de IA</button>
+      <button onclick="showCfgTab('modelos',this)" class="cfg-tab text-sm text-g-dark px-5 py-3 whitespace-nowrap">Modelos</button>
+      <button onclick="showCfgTab('equipo',this)" class="cfg-tab text-sm text-g-dark px-5 py-3 whitespace-nowrap">Equipo</button>
+      <button onclick="showCfgTab('plan',this)" class="cfg-tab text-sm text-g-dark px-5 py-3 whitespace-nowrap">Plan &amp; Billing</button>
+      <button onclick="showCfgTab('seguridad',this)" class="cfg-tab text-sm text-g-dark px-5 py-3 whitespace-nowrap">Seguridad</button>
+    </div>
+  </div>
+
+  <div class="p-8">
+
+  <!-- ══════════════════════ TAB: GENERAL ══════════════════════ -->
+  <div id="cfg-general" class="cfg-section active space-y-6">
+
+    <!-- Org profile -->
+    <div class="bg-white rounded-2xl border border-g-mid p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style="background:rgba(26,33,81,.08)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A2151" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </div>
+        <div>
+          <h3 class="font-semibold text-primary text-sm">Perfil de la Organizaci&#243;n</h3>
+          <p class="text-xs text-g-dark">Informaci&#243;n que aparece en reportes y exportaciones</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div>
+          <label class="block text-xs font-semibold text-g-dark mb-1.5">Nombre de la empresa</label>
+          <input type="text" value="Acme Corp" class="settings-input w-full bg-g-light border border-g-mid rounded-xl px-4 py-2.5 text-sm text-primary">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-g-dark mb-1.5">RFC / Tax ID</label>
+          <input type="text" value="ACM-010101-AB1" class="settings-input w-full bg-g-light border border-g-mid rounded-xl px-4 py-2.5 text-sm text-primary">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-g-dark mb-1.5">Correo de facturaci&#243;n</label>
+          <input type="email" value="finanzas@acmecorp.mx" class="settings-input w-full bg-g-light border border-g-mid rounded-xl px-4 py-2.5 text-sm text-primary">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-g-dark mb-1.5">Industria</label>
+          <select class="settings-input w-full bg-g-light border border-g-mid rounded-xl px-4 py-2.5 text-sm text-g-dark focus:outline-none">
+            <option selected>Tecnolog&#237;a / Software</option>
+            <option>Manufactura</option>
+            <option>Servicios Financieros</option>
+            <option>Retail</option>
+            <option>Telecomunicaciones</option>
+            <option>Salud</option>
+          </select>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-semibold text-g-dark mb-1.5">Zona horaria</label>
+          <select class="settings-input w-full bg-g-light border border-g-mid rounded-xl px-4 py-2.5 text-sm text-g-dark focus:outline-none">
+            <option selected>Am&#233;rica/Ciudad_de_M&#233;xico (UTC&#8722;6)</option>
+            <option>Am&#233;rica/Monterrey (UTC&#8722;6)</option>
+            <option>Am&#233;rica/New_York (UTC&#8722;5)</option>
+            <option>UTC</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tenant API -->
+    <div class="bg-white rounded-2xl border border-g-mid p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-8 h-8 rounded-xl bg-secondary/10 flex items-center justify-center">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00B8FF" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div>
+          <h3 class="font-semibold text-primary text-sm">Acceso API del Tenant</h3>
+          <p class="text-xs text-g-dark">Credenciales para integraciones program&#225;ticas con AgentOS</p>
+        </div>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-g-dark mb-1.5">Tenant ID</label>
+          <div class="flex items-center gap-2">
+            <input type="text" readonly value="tenant_acme_7f3k2p" class="flex-1 bg-g-light border border-g-mid rounded-xl px-4 py-2.5 text-sm text-g-dark font-mono">
+            <button onclick="copyToClipboard('tenant_acme_7f3k2p', this)" class="px-4 py-2.5 bg-g-light border border-g-mid rounded-xl text-xs text-g-dark hover:bg-g-mid transition-colors flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copiar
+            </button>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="text-xs font-semibold text-g-dark">API Token</label>
+            <button onclick="regenerateToken()" class="text-xs text-red-400 hover:text-red-600 transition-colors">Regenerar token</button>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="password" id="apiTokenInput" value="sk-agentos-acme-X9kM2pL8vQr5tNwA3jHeBdCuFoZiYg" class="flex-1 bg-g-light border border-g-mid rounded-xl px-4 py-2.5 text-sm text-primary font-mono key-input">
+            <button onclick="toggleReveal('apiTokenInput', this)" class="px-4 py-2.5 bg-g-light border border-g-mid rounded-xl text-xs text-g-dark hover:bg-g-mid transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="bg-secondary/5 border border-secondary/20 rounded-xl p-3 flex items-start gap-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00B8FF" stroke-width="2" class="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p class="text-xs text-g-dark">Endpoint base: <span class="font-mono text-primary font-medium">https://api.agentos.io/v1/tenant_acme_7f3k2p</span></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notificaciones -->
+    <div class="bg-white rounded-2xl border border-g-mid p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-8 h-8 rounded-xl bg-tertiary/10 flex items-center justify-center">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9E00BE" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </div>
+        <div>
+          <h3 class="font-semibold text-primary text-sm">Notificaciones</h3>
+          <p class="text-xs text-g-dark">Configura qu&#233; alertas deseas recibir</p>
+        </div>
+      </div>
+      <div class="space-y-1">
+        <div class="flex items-center justify-between py-3 border-b border-g-mid"><div><p class="text-sm text-primary font-medium">Alertas de consumo de tokens</p><p class="text-xs text-g-dark">Notificar cuando el uso supere el 80% del plan</p></div><label class="tgl"><input type="checkbox" checked><span class="tgl-track"></span></label></div>
+        <div class="flex items-center justify-between py-3 border-b border-g-mid"><div><p class="text-sm text-primary font-medium">Resumen semanal por correo</p><p class="text-xs text-g-dark">Reporte de uso cada lunes 9:00 AM</p></div><label class="tgl"><input type="checkbox" checked><span class="tgl-track"></span></label></div>
+        <div class="flex items-center justify-between py-3 border-b border-g-mid"><div><p class="text-sm text-primary font-medium">Nuevos agentes disponibles</p><p class="text-xs text-g-dark">Avisar cuando se agreguen agentes al cat&#225;logo</p></div><label class="tgl"><input type="checkbox" checked><span class="tgl-track"></span></label></div>
+        <div class="flex items-center justify-between py-3"><div><p class="text-sm text-primary font-medium">Alertas de errores y timeouts</p><p class="text-xs text-g-dark">Notificar si un agente falla m&#225;s de 3 veces</p></div><label class="tgl"><input type="checkbox"><span class="tgl-track"></span></label></div>
+      </div>
+    </div>
+
+  </div><!-- /cfg-general -->
+
+
+  <!-- ══════════════════════ TAB: PROVEEDORES DE IA ══════════════════════ -->
+  <div id="cfg-apikeys" class="cfg-section space-y-6">
+
+    <!-- Banner seguridad -->
+    <div class="bg-primary/5 border border-primary/15 rounded-2xl p-5 flex items-start gap-4">
+      <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div>
+        <h3 class="font-semibold text-primary text-sm">Gesti&#243;n de credenciales de proveedores</h3>
+        <p class="text-xs text-g-dark mt-1 leading-relaxed">Las API keys se almacenan cifradas con AES-256. AgentOS act&#250;a como proxy seguro. Conecta <strong class="text-primary">m&#250;ltiples proveedores</strong> o usa el <strong class="text-primary">iAlestra Gateway</strong> como punto &#250;nico de acceso.</p>
+        <div class="flex items-center gap-3 mt-3 flex-wrap">
+          <span class="text-xs bg-green-100 text-green-700 rounded-full px-3 py-1 font-medium flex items-center gap-1.5"><div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>3 proveedores conectados</span>
+          <span class="text-xs bg-g-light text-g-dark rounded-full px-3 py-1 font-medium">Cifrado AES-256</span>
+          <span class="text-xs bg-secondary/10 text-secondary rounded-full px-3 py-1 font-medium">iAlestra Gateway activo</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid de proveedores -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+      <!-- OpenAI -->
+      <div class="provider-card connected bg-white rounded-2xl border border-g-mid p-5" id="card-openai">
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl border border-g-mid bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+              <svg width="22" height="22" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="20" fill="#10a37f"/><path d="M28 14.5a6 6 0 0 0-5.5-3.5 6 6 0 0 0-5.7 4.1A5 5 0 0 0 12 19.5a5 5 0 0 0 2.5 4.3v3.2h11v-3.2A5 5 0 0 0 28 19.5a5 5 0 0 0-.5-2.2A6 6 0 0 0 28 14.5z" fill="white"/></svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h4 class="font-semibold text-primary text-sm">OpenAI</h4>
+                <div class="prov-badge items-center gap-1 bg-green-100 text-green-700 text-xs rounded-full px-2 py-0.5 font-medium"><div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>Conectado</div>
+              </div>
+              <p class="text-xs text-g-dark">GPT-4o &#183; GPT-4 Turbo &#183; o1</p>
+            </div>
+          </div>
+          <button onclick="testProvider('openai')" class="text-xs bg-g-light border border-g-mid hover:bg-secondary/10 hover:text-secondary hover:border-secondary/30 text-g-dark px-2.5 py-1.5 rounded-lg transition-colors">Probar</button>
+        </div>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-g-dark mb-1.5">API Key</label>
+            <div class="flex gap-2">
+              <input type="password" id="key-openai" value="sk-proj-abcdefghijklmnopqrstuvwxyz1234567890" placeholder="sk-proj-..." class="key-input flex-1 bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary">
+              <button onclick="toggleReveal('key-openai', this)" class="w-8 h-8 border border-g-mid rounded-lg bg-g-light hover:bg-g-mid flex items-center justify-center transition-colors"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+              <button onclick="saveProviderKey('openai')" class="px-3 py-2 bg-primary hover:bg-primary/90 text-white text-xs rounded-xl font-medium">Guardar</button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-xs"><span class="text-g-dark">Org: <span class="font-medium text-primary">org-AcmeCorp-7kX</span></span><span class="text-g-dark">&#218;lt. uso: <span class="font-medium text-primary">Hace 5 min</span></span></div>
+          <div class="bg-green-50 border border-green-100 rounded-lg px-3 py-2 text-xs text-green-700 flex items-center gap-1.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Clave v&#225;lida &#183; Cr&#233;dito: $42.30 USD</div>
+        </div>
+      </div>
+
+      <!-- Anthropic -->
+      <div class="provider-card connected bg-white rounded-2xl border border-g-mid p-5" id="card-anthropic">
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl border border-g-mid flex items-center justify-center flex-shrink-0 shadow-sm" style="background:#cc785c">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M13.8 2.4L20.4 21h-3.6l-1.4-4.2H8.6L7.2 21H3.6L10.2 2.4h3.6zm-4.1 11.4h4.6l-2.3-7-2.3 7z" fill="white"/></svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h4 class="font-semibold text-primary text-sm">Anthropic</h4>
+                <div class="prov-badge items-center gap-1 bg-green-100 text-green-700 text-xs rounded-full px-2 py-0.5 font-medium"><div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>Conectado</div>
+              </div>
+              <p class="text-xs text-g-dark">Claude 3.5 Sonnet &#183; Claude 3 Opus &#183; Haiku</p>
+            </div>
+          </div>
+          <button onclick="testProvider('anthropic')" class="text-xs bg-g-light border border-g-mid hover:bg-secondary/10 hover:text-secondary hover:border-secondary/30 text-g-dark px-2.5 py-1.5 rounded-lg transition-colors">Probar</button>
+        </div>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-g-dark mb-1.5">API Key</label>
+            <div class="flex gap-2">
+              <input type="password" id="key-anthropic" value="sk-ant-api03-abcdefghijklmnopqrstuvwxyz" placeholder="sk-ant-api03-..." class="key-input flex-1 bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary">
+              <button onclick="toggleReveal('key-anthropic', this)" class="w-8 h-8 border border-g-mid rounded-lg bg-g-light hover:bg-g-mid flex items-center justify-center transition-colors"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+              <button onclick="saveProviderKey('anthropic')" class="px-3 py-2 bg-primary hover:bg-primary/90 text-white text-xs rounded-xl font-medium">Guardar</button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-xs"><span class="text-g-dark">Workspace: <span class="font-medium text-primary">acme-ws-prod</span></span><span class="text-g-dark">&#218;lt. uso: <span class="font-medium text-primary">Hace 2 h</span></span></div>
+          <div class="bg-green-50 border border-green-100 rounded-lg px-3 py-2 text-xs text-green-700 flex items-center gap-1.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Clave v&#225;lida &#183; Cr&#233;dito: $18.70 USD</div>
+        </div>
+      </div>
+
+      <!-- Google AI -->
+      <div class="provider-card bg-white rounded-2xl border border-g-mid p-5" id="card-google">
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl border border-g-mid bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+              <svg width="22" height="22" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.2 6.5 29.4 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.6-7.9 19.6-20 0-1.3-.1-2.7-.4-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.6 19 12 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.2 6.5 29.4 4 24 4c-7.7 0-14.4 4.4-17.7 10.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-1.9 13.6-5.1l-6.3-5.2A11.9 11.9 0 0 1 24 36c-5.2 0-9.6-3.3-11.2-8H6.1A20 20 0 0 0 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.4 4.3-4.4 5.7l6.3 5.2C41.5 35.3 44 30 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+            </div>
+            <div>
+              <h4 class="font-semibold text-primary text-sm">Google AI</h4>
+              <p class="text-xs text-g-dark">Gemini 1.5 Pro &#183; Flash &#183; Gemini 1.0</p>
+            </div>
+          </div>
+          <button onclick="testProvider('google')" class="text-xs bg-g-light border border-g-mid hover:bg-secondary/10 hover:text-secondary hover:border-secondary/30 text-g-dark px-2.5 py-1.5 rounded-lg transition-colors">Probar</button>
+        </div>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-g-dark mb-1.5">API Key (Google AI Studio)</label>
+            <div class="flex gap-2">
+              <input type="password" id="key-google" value="" placeholder="AIzaSy..." class="key-input flex-1 bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary">
+              <button onclick="toggleReveal('key-google', this)" class="w-8 h-8 border border-g-mid rounded-lg bg-g-light hover:bg-g-mid flex items-center justify-center transition-colors"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+              <button onclick="saveProviderKey('google')" class="px-3 py-2 bg-primary hover:bg-primary/90 text-white text-xs rounded-xl font-medium">Guardar</button>
+            </div>
+          </div>
+          <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Project ID (Vertex AI &#8212; opcional)</label><input type="text" placeholder="my-gcp-project-123" class="key-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary"></div>
+          <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-xs text-yellow-700 flex items-center gap-1.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>API key no configurada.</div>
+        </div>
+      </div>
+
+      <!-- AWS Bedrock -->
+      <div class="provider-card bg-white rounded-2xl border border-g-mid p-5" id="card-aws">
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl border border-g-mid flex items-center justify-center flex-shrink-0 shadow-sm" style="background:#FF9900">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M6.8 10.6c0 .4.1.8.3 1.1.2.3.4.5.7.7l-.5.3c-.3.2-.5.1-.7-.1a3.6 3.6 0 0 1-.8-1.2 4.2 4.2 0 0 1-3.3 1.5c-.9 0-1.7-.3-2.2-.8C0 11.7 0 11 0 10.1c0-.9.3-1.7 1-2.3.7-.6 1.6-.9 2.7-.9.4 0 .8 0 1.2.1.4.1.8.2 1.2.3v-.8c0-.8-.2-1.4-.5-1.7-.3-.3-.9-.5-1.7-.5-.4 0-.8 0-1.2.1-.4.1-.8.2-1.1.4l-.4.1H.9c-.1 0-.2-.1-.2-.3V4.3c0-.2.1-.3.3-.4.4-.2.8-.4 1.4-.5.6-.1 1.1-.2 1.7-.2 1.3 0 2.2.3 2.8.9.6.6.9 1.5.9 2.7v3.5l-.1.3z" fill="white"/></svg>
+            </div>
+            <div>
+              <h4 class="font-semibold text-primary text-sm">AWS Bedrock</h4>
+              <p class="text-xs text-g-dark">Titan &#183; Claude via Bedrock &#183; Llama 3</p>
+            </div>
+          </div>
+          <button onclick="testProvider('aws')" class="text-xs bg-g-light border border-g-mid hover:bg-secondary/10 hover:text-secondary hover:border-secondary/30 text-g-dark px-2.5 py-1.5 rounded-lg transition-colors">Probar</button>
+        </div>
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Access Key ID</label><input type="password" id="key-aws-id" placeholder="AKIA..." class="key-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary"></div>
+            <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Secret Access Key</label><input type="password" id="key-aws-secret" placeholder="wJalrX..." class="key-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary"></div>
+          </div>
+          <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Regi&#243;n AWS</label><select class="key-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs text-g-dark focus:outline-none"><option>us-east-1 (N. Virginia)</option><option>us-west-2 (Oregon)</option><option>eu-west-1 (Irlanda)</option><option selected>us-east-2 (Ohio)</option></select></div>
+          <button onclick="saveProviderKey('aws')" class="w-full px-3 py-2 bg-primary hover:bg-primary/90 text-white text-xs rounded-xl font-medium">Guardar credenciales</button>
+          <div class="bg-g-light border border-g-mid rounded-lg px-3 py-2 text-xs text-g-dark flex items-center gap-1.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>No configurado. Requiere rol IAM con permisos bedrock:InvokeModel.</div>
+        </div>
+      </div>
+
+      <!-- Azure OpenAI -->
+      <div class="provider-card bg-white rounded-2xl border border-g-mid p-5" id="card-azure">
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl border border-g-mid flex items-center justify-center flex-shrink-0 shadow-sm" style="background:#0078D4">
+              <svg width="20" height="20" viewBox="0 0 96 96" fill="none"><path d="M56 0L20 68h16L8 96h80L56 0z" fill="white" opacity=".9"/></svg>
+            </div>
+            <div>
+              <h4 class="font-semibold text-primary text-sm">Azure OpenAI</h4>
+              <p class="text-xs text-g-dark">GPT-4o &#183; GPT-4 Turbo &#183; Embeddings</p>
+            </div>
+          </div>
+          <button onclick="testProvider('azure')" class="text-xs bg-g-light border border-g-mid hover:bg-secondary/10 hover:text-secondary hover:border-secondary/30 text-g-dark px-2.5 py-1.5 rounded-lg transition-colors">Probar</button>
+        </div>
+        <div class="space-y-3">
+          <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Endpoint URL</label><input type="text" placeholder="https://acme.openai.azure.com/" class="key-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary"></div>
+          <div><label class="block text-xs font-semibold text-g-dark mb-1.5">API Key</label><div class="flex gap-2"><input type="password" id="key-azure" placeholder="d3a2b1..." class="key-input flex-1 bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary"><button onclick="toggleReveal('key-azure', this)" class="w-8 h-8 border border-g-mid rounded-lg bg-g-light hover:bg-g-mid flex items-center justify-center transition-colors"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Deployment Name</label><input type="text" placeholder="gpt-4o-deployment" class="key-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary"></div>
+            <div><label class="block text-xs font-semibold text-g-dark mb-1.5">API Version</label><select class="key-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs text-g-dark focus:outline-none"><option selected>2024-02-01</option><option>2024-05-01-preview</option><option>2023-12-01-preview</option></select></div>
+          </div>
+          <button onclick="saveProviderKey('azure')" class="w-full px-3 py-2 bg-primary hover:bg-primary/90 text-white text-xs rounded-xl font-medium">Guardar</button>
+        </div>
+      </div>
+
+      <!-- iAlestra Gateway OSS — FULL WIDTH -->
+      <div class="provider-card connected bg-white rounded-2xl border-2 border-secondary/40 p-6 lg:col-span-2" id="card-ialestra">
+        <div class="flex items-start justify-between mb-5">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg" style="background:linear-gradient(135deg,#1A2151 0%,#0057A8 50%,#00B8FF 100%)">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" fill="white"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="white" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="12" r="8.5" stroke="white" stroke-width="1.4" stroke-dasharray="3.5 2.5"/></svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap mb-1">
+                <h4 class="font-bold text-primary text-base">iAlestra Gateway</h4>
+                <span class="text-xs bg-secondary text-white rounded-full px-2.5 py-0.5 font-bold">OSS</span>
+                <span class="text-xs bg-primary text-white rounded-full px-2.5 py-0.5 font-semibold">Recomendado</span>
+                <div class="prov-badge items-center gap-1 bg-green-100 text-green-700 text-xs rounded-full px-2.5 py-0.5 font-medium"><div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>Activo</div>
+              </div>
+              <p class="text-xs text-g-dark">Gateway unificado on-premise &#183; LiteLLM compatible &#183; Todos los modelos desde un solo endpoint interno seguro</p>
+            </div>
+          </div>
+          <button onclick="testProvider('ialestra')" class="text-xs bg-secondary/10 border border-secondary/30 text-secondary hover:bg-secondary/20 px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap">Probar conexi&#243;n</button>
+        </div>
+
+        <!-- Feature pills -->
+        <div class="flex flex-wrap gap-2 mb-5">
+          <span class="text-xs rounded-lg px-3 py-1.5 font-medium flex items-center gap-1.5" style="background:rgba(26,33,81,.07);border:1px solid rgba(26,33,81,.15)">&#128274; Sin salida de datos al exterior</span>
+          <span class="text-xs rounded-lg px-3 py-1.5 font-medium flex items-center gap-1.5" style="background:rgba(0,184,255,.07);border:1px solid rgba(0,184,255,.15)">&#9889; Latencia ultra-baja en red interna</span>
+          <span class="text-xs rounded-lg px-3 py-1.5 font-medium flex items-center gap-1.5" style="background:rgba(158,0,190,.07);border:1px solid rgba(158,0,190,.15)">&#128202; Logging centralizado y auditor&#237;a</span>
+          <span class="text-xs bg-green-50 border border-green-100 rounded-lg px-3 py-1.5 font-medium flex items-center gap-1.5">&#128176; Facturaci&#243;n consolidada</span>
+          <span class="text-xs bg-g-light border border-g-mid rounded-lg px-3 py-1.5 font-medium flex items-center gap-1.5">&#128260; Fallback autom&#225;tico entre proveedores</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <!-- Conexion -->
+          <div class="space-y-3">
+            <p class="text-xs font-semibold text-g-dark uppercase tracking-wide">Conexi&#243;n</p>
+            <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Gateway URL</label><input type="text" id="key-ialestra-url" value="https://ai-gateway.ialestra.mx/v1" class="key-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary"></div>
+            <div><label class="block text-xs font-semibold text-g-dark mb-1.5">API Key del Gateway</label><div class="flex gap-2"><input type="password" id="key-ialestra" value="ialestra-gw-sk-AcmeCorp-k9Lm3pX8vR" class="key-input flex-1 bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary"><button onclick="toggleReveal('key-ialestra', this)" class="w-8 h-8 border border-g-mid rounded-lg bg-g-light hover:bg-g-mid flex items-center justify-center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+            <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Tenant / Org</label><input type="text" value="acmecorp-prod" class="key-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary"></div>
+          </div>
+          <!-- Modelos -->
+          <div class="space-y-3">
+            <p class="text-xs font-semibold text-g-dark uppercase tracking-wide">Modelos y pol&#237;tica</p>
+            <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Modelo por defecto</label><select class="key-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs text-g-dark focus:outline-none"><option selected>gpt-4o (via iAlestra)</option><option>claude-3-5-sonnet (via iAlestra)</option><option>gemini-1.5-pro (via iAlestra)</option><option>llama-3-70b (via iAlestra)</option><option>mistral-large (via iAlestra)</option></select></div>
+            <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Pol&#237;tica de fallback</label><select class="key-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs text-g-dark focus:outline-none"><option selected>Auto-fallback a OpenAI directo</option><option>Auto-fallback a Anthropic directo</option><option>Sin fallback &#183; Falla en error</option></select></div>
+            <div><label class="block text-xs font-semibold text-g-dark mb-1.5">L&#237;mite tokens / d&#237;a</label><input type="number" value="500000" class="key-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs text-primary"></div>
+          </div>
+          <!-- Status -->
+          <div class="space-y-3">
+            <p class="text-xs font-semibold text-g-dark uppercase tracking-wide">Estado en tiempo real</p>
+            <div class="bg-green-50 border border-green-100 rounded-xl p-4 space-y-2.5">
+              <div class="flex items-center justify-between text-xs"><span class="text-green-700 font-semibold flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>Gateway operativo</span><span class="text-green-600 font-medium">99.98%</span></div>
+              <div class="flex items-center justify-between text-xs text-green-700"><span>Latencia promedio</span><span class="font-semibold">42 ms</span></div>
+              <div class="flex items-center justify-between text-xs text-green-700"><span>Requests hoy</span><span class="font-semibold">1,247</span></div>
+              <div class="flex items-center justify-between text-xs text-green-700"><span>Tokens hoy</span><span class="font-semibold">284K</span></div>
+              <div class="flex items-center justify-between text-xs text-green-700"><span>Modelos activos</span><span class="font-semibold">8</span></div>
+            </div>
+            <div class="bg-g-light border border-g-mid rounded-xl px-3 py-2.5 text-xs text-g-dark flex items-center gap-1.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>SSL v&#225;lido &#183; Renueva: 15 Dic 2025</div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mt-5 pt-5 border-t border-g-mid">
+          <p class="text-xs text-g-dark">Al usar iAlestra Gateway <strong class="text-primary">no necesitas configurar las otras API keys por separado</strong> en cada agente.</p>
+          <button onclick="saveProviderKey('ialestra')" class="ml-4 px-5 py-2.5 bg-secondary hover:bg-secondary/90 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap">Guardar configuraci&#243;n</button>
+        </div>
+      </div><!-- /ialestra -->
+
+    </div><!-- /provider grid -->
+
+    <!-- Nota de ayuda -->
+    <div class="bg-white rounded-2xl border border-g-mid p-5 flex items-start gap-4">
+      <div class="w-9 h-9 rounded-xl bg-tertiary/10 flex items-center justify-center flex-shrink-0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9E00BE" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div>
+        <h4 class="font-semibold text-primary text-sm mb-1">&#191;Qu&#233; proveedor debo usar?</h4>
+        <p class="text-xs text-g-dark leading-relaxed">Si tu organizaci&#243;n tiene el <strong class="text-primary">iAlestra Gateway</strong> activo, &#250;salo como proveedor principal &#8212; todos los modelos estar&#225;n disponibles desde un solo endpoint interno. Los proveedores externos (OpenAI, Anthropic, Google, AWS, Azure) se usan como <strong class="text-primary">fallback</strong> o para casos de acceso directo.</p>
+      </div>
+    </div>
+
+  </div><!-- /cfg-apikeys -->
+
+
+  <!-- ══════════════════════ TAB: MODELOS ══════════════════════ -->
+  <div id="cfg-modelos" class="cfg-section space-y-6">
+    <div class="bg-white rounded-2xl border border-g-mid p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-8 h-8 rounded-xl bg-secondary/10 flex items-center justify-center">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00B8FF" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <div><h3 class="font-semibold text-primary text-sm">Configuraci&#243;n global de modelos</h3><p class="text-xs text-g-dark">Preferencias por defecto para todos los agentes.</p></div>
+      </div>
+      <div class="space-y-5">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Modelo por defecto (an&#225;lisis)</label><select class="settings-input w-full bg-g-light border border-g-mid rounded-xl px-4 py-2.5 text-sm text-g-dark focus:outline-none"><option selected>GPT-4o (OpenAI)</option><option>Claude 3.5 Sonnet</option><option>Gemini 1.5 Pro</option><option>GPT-4o via iAlestra Gateway</option></select></div>
+          <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Modelo por defecto (chat)</label><select class="settings-input w-full bg-g-light border border-g-mid rounded-xl px-4 py-2.5 text-sm text-g-dark focus:outline-none"><option selected>GPT-4o mini (OpenAI)</option><option>Claude 3 Haiku</option><option>Gemini 1.5 Flash</option></select></div>
+          <div><label class="block text-xs font-semibold text-g-dark mb-1.5">Modelo para embeddings</label><select class="settings-input w-full bg-g-light border border-g-mid rounded-xl px-4 py-2.5 text-sm text-g-dark focus:outline-none"><option selected>text-embedding-3-large (OpenAI)</option><option>text-embedding-3-small</option><option>embed-multilingual-v3.0 (Cohere)</option></select></div>
+        </div>
+        <div class="border-t border-g-mid pt-4">
+          <p class="text-xs font-semibold text-g-dark mb-3">Límites de tokens por sesión</p>
+          <div class="grid grid-cols-3 gap-4">
+            <div><label class="block text-xs text-g-dark mb-1.5">Input máx.</label><input type="number" value="32000" class="settings-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-sm text-primary"></div>
+            <div><label class="block text-xs text-g-dark mb-1.5">Output máx.</label><input type="number" value="4096" class="settings-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-sm text-primary"></div>
+            <div><label class="block text-xs text-g-dark mb-1.5">Ventana contexto</label><input type="number" value="128000" class="settings-input w-full bg-g-light border border-g-mid rounded-xl px-3 py-2 text-sm text-primary"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /cfg-modelos -->
+
+  <!-- TAB: EQUIPO -->
+  <div id="cfg-equipo" class="cfg-section space-y-6">
+    <div class="bg-white rounded-2xl border border-g-mid overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-g-mid">
+        <div><h3 class="font-semibold text-primary text-sm">Miembros del equipo</h3><p class="text-xs text-g-dark mt-0.5">3 miembros · Plan Pro permite hasta 15</p></div>
+        <button onclick="showToast('📧','Funcionalidad próximamente')" class="flex items-center gap-1.5 text-xs bg-primary hover:bg-primary/90 text-white px-3 py-2 rounded-xl font-medium">+ Invitar miembro</button>
+      </div>
+      <div class="divide-y divide-g-mid">
+        <div class="flex items-center justify-between px-6 py-4"><div class="flex items-center gap-3"><div class="w-9 h-9 rounded-full bg-gradient-to-br from-secondary to-primary flex items-center justify-center"><span class="text-white text-xs font-bold">AC</span></div><div><p class="text-sm font-semibold text-primary">Admin Corporativo</p><p class="text-xs text-g-dark">admin@acmecorp.mx</p></div></div><div class="flex items-center gap-3"><span class="role-admin text-xs font-semibold px-2.5 py-1 rounded-full">Admin</span><span class="text-xs text-g-dark">Tú</span></div></div>
+        <div class="flex items-center justify-between px-6 py-4"><div class="flex items-center gap-3"><div class="w-9 h-9 rounded-full bg-gradient-to-br from-tertiary to-primary flex items-center justify-center"><span class="text-white text-xs font-bold">AG</span></div><div><p class="text-sm font-semibold text-primary">Ana García</p><p class="text-xs text-g-dark">ana.garcia@acmecorp.mx</p></div></div><div class="flex items-center gap-3"><select class="text-xs bg-g-light border border-g-mid rounded-lg px-2.5 py-1.5 text-g-dark focus:outline-none"><option selected>Member</option><option>Admin</option><option>Viewer</option></select><button class="text-xs text-red-400 hover:text-red-600">Eliminar</button></div></div>
+        <div class="flex items-center justify-between px-6 py-4"><div class="flex items-center gap-3"><div class="w-9 h-9 rounded-full bg-gradient-to-br from-g-dark to-g-mid flex items-center justify-center"><span class="text-white text-xs font-bold">LT</span></div><div><p class="text-sm font-semibold text-primary">Luis Torres</p><p class="text-xs text-g-dark">luis.torres@acmecorp.mx</p></div></div><div class="flex items-center gap-3"><select class="text-xs bg-g-light border border-g-mid rounded-lg px-2.5 py-1.5 text-g-dark focus:outline-none"><option>Member</option><option>Admin</option><option selected>Viewer</option></select><button class="text-xs text-red-400 hover:text-red-600">Eliminar</button></div></div>
+      </div>
+    </div>
+  </div><!-- /cfg-equipo -->
+
+  <!-- TAB: PLAN -->
+  <div id="cfg-plan" class="cfg-section space-y-6">
+    <div class="bg-white rounded-2xl border border-g-mid p-6">
+      <div class="flex items-start justify-between mb-5"><div><h3 class="font-semibold text-primary text-sm">Plan actual</h3><p class="text-xs text-g-dark mt-0.5">Renovación: 1 Junio 2025</p></div><span class="bg-secondary text-white text-xs font-bold px-3 py-1.5 rounded-full">Pro</span></div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+        <div class="bg-g-light rounded-xl p-4 text-center"><p class="text-xl font-bold text-primary">8</p><p class="text-xs text-g-dark">Agentes máx.</p><p class="text-xs text-secondary font-medium mt-0.5">4 usados</p></div>
+        <div class="bg-g-light rounded-xl p-4 text-center"><p class="text-xl font-bold text-primary">5M</p><p class="text-xs text-g-dark">Tokens / mes</p><p class="text-xs text-secondary font-medium mt-0.5">1.2M usados</p></div>
+        <div class="bg-g-light rounded-xl p-4 text-center"><p class="text-xl font-bold text-primary">15</p><p class="text-xs text-g-dark">Usuarios</p><p class="text-xs text-secondary font-medium mt-0.5">3 activos</p></div>
+        <div class="bg-g-light rounded-xl p-4 text-center"><p class="text-xl font-bold text-primary">$199</p><p class="text-xs text-g-dark">USD / mes</p><p class="text-xs text-green-500 font-medium mt-0.5">Al corriente</p></div>
+      </div>
+      <div class="flex gap-3"><button class="flex-1 py-2.5 bg-secondary hover:bg-secondary/90 text-white text-sm font-semibold rounded-xl">Actualizar a Enterprise</button><button class="px-5 py-2.5 bg-g-light border border-g-mid hover:bg-g-mid text-g-dark text-sm rounded-xl">Cancelar plan</button></div>
+    </div>
+  </div><!-- /cfg-plan -->
+
+  <!-- TAB: SEGURIDAD -->
+  <div id="cfg-seguridad" class="cfg-section space-y-6">
+    <div class="bg-white rounded-2xl border border-g-mid p-6 space-y-4">
+      <h3 class="font-semibold text-primary text-sm">Autenticación y acceso</h3>
+      <div class="flex items-center justify-between py-3 border-b border-g-mid"><div><p class="text-sm text-primary font-medium">Autenticación de dos factores (MFA)</p><p class="text-xs text-g-dark">Obligatorio para todos los miembros</p></div><label class="tgl"><input type="checkbox" checked><span class="tgl-track"></span></label></div>
+      <div class="flex items-center justify-between py-3 border-b border-g-mid"><div><p class="text-sm text-primary font-medium">SSO con Keycloak / SAML 2.0</p><p class="text-xs text-g-dark">Integra con tu proveedor de identidad corporativo</p></div><label class="tgl"><input type="checkbox"><span class="tgl-track"></span></label></div>
+      <div class="flex items-center justify-between py-3"><div><p class="text-sm text-primary font-medium">Registro de auditoría</p><p class="text-xs text-g-dark">Log de todas las acciones</p></div><label class="tgl"><input type="checkbox" checked><span class="tgl-track"></span></label></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-g-mid p-6">
+      <h3 class="font-semibold text-primary text-sm mb-1">Lista de IPs permitidas</h3>
+      <p class="text-xs text-g-dark mb-4">Solo estas IPs podrán acceder a la API de tu tenant</p>
+      <div class="space-y-2" id="ipList">
+        <div class="flex items-center gap-2"><input type="text" value="192.168.1.0/24" class="settings-input flex-1 bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary"><button onclick="this.parentElement.remove()" class="w-8 h-8 bg-g-light border border-g-mid rounded-lg hover:bg-red-50 flex items-center justify-center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+        <div class="flex items-center gap-2"><input type="text" value="10.0.0.0/8" class="settings-input flex-1 bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary"><button onclick="this.parentElement.remove()" class="w-8 h-8 bg-g-light border border-g-mid rounded-lg hover:bg-red-50 flex items-center justify-center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      </div>
+      <button onclick="addIP()" class="mt-3 flex items-center gap-1.5 text-xs text-secondary hover:underline">+ Agregar IP</button>
+    </div>
+  </div><!-- /cfg-seguridad -->
+
+  </div><!-- /p-8 -->
+</div><!-- /configView -->
+
+
+<!-- OVERLAY -->
+<div class="overlay fixed inset-0 z-50" style="background:rgba(26,33,81,.45)" id="overlay" onclick="closeDetail()"></div>
+
+<!-- DETAIL PANEL -->
+<aside class="panel fixed top-0 right-0 h-full w-full md:w-[460px] bg-white shadow-2xl z-50 flex flex-col" id="detailPanel">
+  <div class="flex items-center justify-between px-6 py-4 border-b border-g-mid bg-white sticky top-0 z-10">
+    <div class="flex items-center gap-3">
+      <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" id="dpIconBg" style="background:linear-gradient(135deg,rgba(0,184,255,.18),rgba(0,184,255,.05))"><span class="text-xl" id="dpIcon">📊</span></div>
+      <div><h2 class="font-bold text-primary text-base" id="dpName">Analista P&L</h2><p class="text-xs text-g-dark" id="dpMeta">Finanzas · GPT-4o</p></div>
+    </div>
+    <button onclick="closeDetail()" class="w-8 h-8 rounded-full bg-g-light hover:bg-g-mid flex items-center justify-center transition-colors"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="flex-1 overflow-y-auto">
+    <div class="p-6 space-y-6">
+      <div class="flex items-center justify-between bg-g-light rounded-2xl p-4">
+        <div><p class="text-sm font-semibold text-primary" id="dpStatusTxt">Habilitado</p><p class="text-xs text-g-dark">Activo desde 14 enero, 2025</p></div>
+        <label class="tgl"><input type="checkbox" id="dpToggleInput"><span class="tgl-track"></span></label>
+      </div>
+      <div><p class="text-[10px] font-semibold text-g-dark uppercase tracking-widest mb-2">Descripción</p><p class="text-sm text-primary leading-relaxed" id="dpDesc">—</p></div>
+      <div><p class="text-[10px] font-semibold text-g-dark uppercase tracking-widest mb-3">Capacidades</p><ul class="space-y-2" id="dpCaps"></ul></div>
+      <div><p class="text-[10px] font-semibold text-g-dark uppercase tracking-widest mb-3">Herramientas</p><div class="flex flex-wrap gap-2" id="dpTools"></div></div>
+      <div><p class="text-[10px] font-semibold text-g-dark uppercase tracking-widest mb-3">Preguntas de ejemplo</p><div class="space-y-2" id="dpPrompts"></div></div>
+      <div><p class="text-[10px] font-semibold text-g-dark uppercase tracking-widest mb-3">Colabora con</p><div class="flex flex-wrap gap-2" id="dpCollab"></div></div>
+      <div class="bg-g-light rounded-2xl p-4" id="dpUsage">
+        <p class="text-[10px] font-semibold text-g-dark uppercase tracking-widest mb-3">Uso este mes</p>
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div><p class="text-xl font-bold text-primary" id="dpQ">—</p><p class="text-xs text-g-dark">Consultas</p></div>
+          <div><p class="text-xl font-bold text-primary" id="dpT">—</p><p class="text-xs text-g-dark">Tokens</p></div>
+          <div><p class="text-xl font-bold text-primary" id="dpL">—</p><p class="text-xs text-g-dark">Latencia</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="px-6 py-4 border-t border-g-mid bg-white">
+    <button id="openChatBtn" onclick="openChat()" class="w-full bg-primary hover:bg-primary/90 text-white font-semibold rounded-2xl py-3.5 text-sm transition-all hover:shadow-lg flex items-center justify-center gap-2">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Abrir Chat con este Agente
+    </button>
+  </div>
+</aside>
+
+<!-- CHAT VIEW -->
+<div id="chatView">
+  <div class="bg-primary flex items-center justify-between px-5 h-16 flex-shrink-0 shadow-lg">
+    <div class="flex items-center gap-3">
+      <button onclick="closeChat()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors mr-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,rgba(0,184,255,.3),rgba(0,184,255,.1))"><span class="text-lg" id="chatAgentIcon">📊</span></div>
+      <div><div class="flex items-center gap-2"><p class="text-white font-semibold text-sm" id="chatAgentName">Analista P&L</p><div class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></div></div><p class="text-white/50 text-xs" id="chatAgentMeta">Finanzas · GPT-4o</p></div>
+    </div>
+    <button onclick="newChatSession()" class="flex items-center gap-1.5 text-xs bg-secondary/20 hover:bg-secondary/30 text-secondary px-3 py-1.5 rounded-lg transition-colors">+ Nuevo chat</button>
+  </div>
+  <div class="flex flex-1 overflow-hidden">
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div class="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5" id="messagesArea"></div>
+      <div class="border-t border-g-mid bg-white px-6 py-2 flex items-center justify-between">
+        <span class="text-xs text-g-dark">Sesión: <span class="font-semibold text-primary" id="sessionTokens">0</span> tokens</span>
+        <div class="flex items-center gap-1.5 text-xs text-g-dark"><div class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></div><span id="chatAgentModel">GPT-4o</span></div>
+      </div>
+      <div class="bg-white border-t border-g-mid px-4 md:px-6 py-4">
+        <div class="flex items-end gap-3 bg-g-light rounded-2xl px-4 py-3 border border-g-mid focus-within:border-secondary" style="transition:border-color .2s">
+          <textarea id="chatInput" rows="1" placeholder="Pregunta algo al agente..." class="flex-1 bg-transparent text-sm text-primary placeholder-g-dark resize-none max-h-32 leading-relaxed" onkeydown="handleChatKey(event)" oninput="autoResize(this)"></textarea>
+          <button onclick="sendMessage()" class="w-8 h-8 rounded-xl bg-primary hover:bg-primary/90 flex items-center justify-center transition-colors flex-shrink-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+        </div>
+        <p class="text-center text-[10px] text-g-dark mt-2">Los resultados pueden contener errores. Verifica información crítica.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast fixed bottom-6 left-1/2 -translate-x-1/2 z-[999] flex items-center gap-3 bg-primary text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl pointer-events-none">
+  <span id="toastIcon">✅</span><span id="toastMsg">Agente habilitado</span>
+</div>
+
+<script>
+const AGENTS = [
+  { icon:'📊', name:'Analista P&L', cat:'Finanzas', model:'GPT-4o', desc:'Analiza estados de pérdidas y ganancias, identifica variaciones, tendencias y genera insights accionables sobre la rentabilidad del negocio.', caps:['Análisis de variaciones por línea de negocio','Generación de gráficas comparativas automáticas','Exportación a Excel y PDF ejecutivo','Alertas automáticas por desviaciones al presupuesto'], tools:['Excel Parser','Chart Generator','DB Query','PDF Export'], prompts:['"¿Cuál fue la variación del EBITDA vs el trimestre anterior?"','"Genera análisis de rentabilidad por línea de producto"','"¿Dónde están los principales desvíos respecto al presupuesto?"'], collab:[{icon:'📈',name:'Forecast Presupuestal'},{icon:'💰',name:'Cash Flow Predictor'}], queries:83, tokens:'412K', latency:'1.4s' },
+  { icon:'🎯', name:'Análisis de Competencia', cat:'Marketing', model:'Claude 3.5', desc:'Monitorea competidores en tiempo real, analiza posicionamiento, estrategias de precios y genera reportes comparativos.', caps:['Monitoreo automático de precios y cambios','Análisis de posicionamiento SEO','Reportes comparativos con benchmarks','Alertas ante movimientos estratégicos'], tools:['Web Scraper','Report Builder','News API','Webhook'], prompts:['"¿Cómo se comparan nuestros precios con el mercado?"','"¿Qué nuevos productos lanzó la competencia este mes?"','"Genera un mapa de posicionamiento del sector"'], collab:[{icon:'📣',name:'Optimizador de Campañas'}], queries:61, tokens:'298K', latency:'2.1s' },
+  { icon:'👥', name:'Talent Analytics', cat:'RRHH', model:'GPT-4o', desc:'Analiza métricas de desempeño, rotación de personal y clima organizacional.', caps:['Dashboard de indicadores de talento','Predicción de riesgo de rotación','Análisis de brechas de competencias','Recomendaciones de desarrollo'], tools:['HR System API','Chart Generator','Surveys','DB Query'], prompts:['"¿Cuáles son los perfiles con mayor riesgo de salida?"','"Muéstrame el índice de rotación por área en Q1"'], collab:[{icon:'⭐',name:'Performance Review'}], queries:45, tokens:'187K', latency:'1.9s' },
+  { icon:'🔮', name:'Churn Predictor', cat:'CS', model:'GPT-4o', desc:'Predice la probabilidad de abandono de clientes e identifica señales de riesgo.', caps:['Score de riesgo de churn por cliente','Segmentación de clientes en riesgo','Sugerencias de retención por perfil','Integración con CRM'], tools:['CRM API','ML Predictor','Alerts','Webhook'], prompts:['"¿Qué clientes tienen más del 70% de probabilidad de irse?"','"Genera plan de retención para los top 10 en riesgo"'], collab:[], queries:38, tokens:'156K', latency:'1.6s' },
+  { icon:'📈', name:'Forecast Presupuestal', cat:'Finanzas', model:'GPT-4o', desc:'Genera proyecciones presupuestales basadas en datos históricos y variables macroeconómicas configurables.', caps:['Proyecciones a 3, 6 y 12 meses','Análisis de escenarios múltiples','Integración con ERP','Exportación a Excel'], tools:['Time Series','Excel Export','ERP API','Chart Generator'], prompts:['"Genera el forecast de ventas para Q3 2025"','"¿Cuál es el escenario pesimista si las tasas suben 2%?"'], collab:[{icon:'📊',name:'Analista P&L'}], queries:0, tokens:'—', latency:'—' },
+  { icon:'📣', name:'Optimizador de Campañas', cat:'Marketing', model:'GPT-4o', desc:'Analiza el rendimiento de campañas digitales y optimiza segmentación y presupuesto para maximizar el ROI.', caps:['Análisis de ROAS por canal','Recomendaciones de presupuesto','Optimización de audiencias','Reportes de performance'], tools:['Google Ads API','Meta Ads API','Analytics','Webhook'], prompts:['"¿Cuál campaña tuvo mejor ROAS esta semana?"','"Redistribuye el presupuesto para maximizar conversiones"'], collab:[{icon:'🎯',name:'Análisis de Competencia'}], queries:0, tokens:'—', latency:'—' },
+  { icon:'⚖️', name:'Revisión de Contratos', cat:'Legal', model:'Claude 3.5', desc:'Revisa contratos, identifica cláusulas de riesgo e inconsistencias.', caps:['Identificación de cláusulas de riesgo','Comparación con contratos estándar','Resumen ejecutivo claro','Sugerencias de redacción'], tools:['PDF Parser','Legal DB','Risk Scorer','Report Builder'], prompts:['"¿Hay cláusulas de penalización abusivas?"','"Resume los términos de pago y entrega"'], collab:[{icon:'🛡️',name:'Compliance Monitor'}], queries:0, tokens:'—', latency:'—' },
+  { icon:'🔗', name:'Supply Chain Optimizer', cat:'Operaciones', model:'GPT-4o', desc:'Optimiza la cadena de suministro y gestiona inventarios con demanda predictiva.', caps:['Predicción de demanda por SKU','Detección de cuellos de botella','Optimización de inventario','Alertas de disrupciones'], tools:['ERP Connector','IoT Data','Geolocation','Webhook'], prompts:['"¿Cuáles son los SKUs con riesgo de desabasto?"'], collab:[], queries:0, tokens:'—', latency:'—' },
+  { icon:'💰', name:'Cash Flow Predictor', cat:'Finanzas', model:'GPT-4o', desc:'Proyecta flujos de caja a 30, 60 y 90 días y recomienda acciones preventivas.', caps:['Proyecciones de cash flow','Detección de brechas de liquidez','Análisis de estacionalidad','Optimización de capital de trabajo'], tools:['Bank API','Time Series','Alerts','DB Query'], prompts:['"¿Tendremos problemas de liquidez en 45 días?"'], collab:[{icon:'📊',name:'Analista P&L'}], queries:0, tokens:'—', latency:'—' },
+  { icon:'⭐', name:'Performance Review', cat:'RRHH', model:'GPT-4o', desc:'Automatiza evaluaciones de desempeño con análisis objetivos basados en OKRs y feedback 360.', caps:['Evaluaciones basadas en datos','Análisis de OKRs','Feedback 360 sintetizado','Planes de desarrollo'], tools:['HR System API','OKR Tracker','Feedback Bot','Report Builder'], prompts:['"Genera el reporte de desempeño del equipo"'], collab:[{icon:'👥',name:'Talent Analytics'}], queries:0, tokens:'—', latency:'—' },
+  { icon:'🔍', name:'SEO Content Analyzer', cat:'Marketing', model:'GPT-4o', desc:'Analiza contenido para SEO e identifica keywords de alto impacto.', caps:['Auditoría SEO completa','Investigación de keywords','Sugerencias de contenido','Monitoreo de rankings'], tools:['SEMrush API','Search Console','Content AI','Webhook'], prompts:['"¿Qué keywords debo agregar a mi página?"'], collab:[{icon:'🎯',name:'Análisis de Competencia'}], queries:0, tokens:'—', latency:'—' },
+  { icon:'🛡️', name:'Compliance Monitor', cat:'Legal', model:'Claude 3.5', desc:'Monitorea cumplimiento regulatorio y genera reportes para auditorías.', caps:['Monitoreo continuo de regulaciones','Detección de desviaciones','Evidencias para auditorías','Alertas por tipo de riesgo'], tools:['Reg Tracker','Doc Scanner','Alert Engine','Report Builder'], prompts:['"¿Hay cambios regulatorios que nos afecten?"'], collab:[{icon:'⚖️',name:'Revisión de Contratos'}], queries:0, tokens:'—', latency:'—' }
+];
+
+let activeCount=4, currentCat='all', currentStatus='all', currentAgentIdx=0, sessionTokenCount=0, chatTypingTimer=null;
+
+function showView(view, linkEl) {
+  const layout=document.getElementById('mainLayout');
+  const analytics=document.getElementById('analyticsView');
+  const config=document.getElementById('configView');
+  document.querySelectorAll('.nav-lnk').forEach(l=>l.classList.remove('active'));
+  if(linkEl) linkEl.classList.add('active');
+  if(view==='analytics'){layout.style.display='none';analytics.classList.add('active');config.classList.remove('active');setTimeout(initCharts,100);}
+  else if(view==='config'){layout.style.display='none';analytics.classList.remove('active');config.classList.add('active');}
+  else{layout.style.display='';analytics.classList.remove('active');config.classList.remove('active');}
+  return false;
+}
+
+function toggleAgent(cb){
+  const card=cb.closest('.agent-card');
+  if(cb.checked){activeCount++;card.dataset.on='true';card.classList.add('enabled');showToast('✅','Agente habilitado');}
+  else{activeCount--;card.dataset.on='false';card.classList.remove('enabled');showToast('⏸️','Agente deshabilitado');}
+  document.getElementById('statEnabled').textContent=activeCount;
+  document.getElementById('sidebarActive').textContent=activeCount;
+  document.getElementById('navBadge').textContent=`Plan Pro · ${activeCount} / 8 agentes`;
+}
+
+function filterCategory(cat,btn){currentCat=cat;document.querySelectorAll('.cat-item').forEach(b=>b.classList.remove('active'));btn.classList.add('active');applyFilters();}
+function filterStatus(status,btn){currentStatus=status;document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));btn.classList.add('active');applyFilters();}
+function applyFilters(){
+  const q=document.getElementById('searchInput').value.toLowerCase();
+  const cards=document.querySelectorAll('.agent-card');
+  let visible=0;
+  cards.forEach(card=>{
+    const name=card.querySelector('h3').textContent.toLowerCase();
+    const isOn=card.dataset.on==='true', isNew=card.dataset.new==='true';
+    const catOk=currentCat==='all'||card.dataset.cat===currentCat;
+    const stOk=currentStatus==='all'||(currentStatus==='enabled'&&isOn)||(currentStatus==='disabled'&&!isOn)||(currentStatus==='new'&&isNew);
+    const qOk=!q||name.includes(q);
+    const show=catOk&&stOk&&qOk; card.style.display=show?'':'none'; if(show) visible++;
+  });
+  document.getElementById('visibleCount').textContent=visible;
+  const empty=document.getElementById('emptyState'), grid=document.getElementById('agentGrid');
+  if(visible===0){empty.classList.remove('hidden');empty.classList.add('flex');grid.classList.add('hidden');}
+  else{empty.classList.add('hidden');empty.classList.remove('flex');grid.classList.remove('hidden');}
+}
+
+function openDetail(idx){
+  const a=AGENTS[idx];
+  document.getElementById('dpIcon').textContent=a.icon;
+  document.getElementById('dpName').textContent=a.name;
+  document.getElementById('dpMeta').textContent=`${a.cat} · ${a.model}`;
+  document.getElementById('dpDesc').textContent=a.desc;
+  document.getElementById('dpCaps').innerHTML=a.caps.map(c=>`<li class="flex items-start gap-2"><div class="w-4 h-4 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0 mt-0.5"><div class="w-1.5 h-1.5 rounded-full bg-secondary"></div></div><span class="text-sm text-primary">${c}</span></li>`).join('');
+  document.getElementById('dpTools').innerHTML=a.tools.map(t=>`<span class="inline-flex items-center gap-1.5 text-xs bg-secondary/10 text-secondary border border-secondary/20 rounded-xl px-3 py-1.5 font-medium">${t}</span>`).join('');
+  document.getElementById('dpPrompts').innerHTML=a.prompts.map(p=>`<div class="prompt-item bg-g-light rounded-xl px-4 py-2.5"><p class="text-xs text-primary">${p}</p></div>`).join('');
+  document.getElementById('dpCollab').innerHTML=a.collab.length?a.collab.map(c=>`<div class="flex items-center gap-2 bg-g-light rounded-xl px-3 py-2"><span class="text-sm">${c.icon}</span><span class="text-xs text-primary font-medium">${c.name}</span></div>`).join(''):'<p class="text-xs text-g-dark italic">Agente autónomo</p>';
+  document.getElementById('dpUsage').style.opacity=a.queries>0?'1':'0.45';
+  document.getElementById('dpQ').textContent=a.queries||'—';
+  document.getElementById('dpT').textContent=a.tokens;
+  document.getElementById('dpL').textContent=a.latency;
+  const enabled=document.querySelectorAll('.agent-card')[idx]?.dataset.on==='true';
+  document.getElementById('dpToggleInput').checked=enabled;
+  document.getElementById('dpStatusTxt').textContent=enabled?'Habilitado':'No habilitado';
+  currentAgentIdx=idx;
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeDetail(){document.getElementById('detailPanel').classList.remove('open');document.getElementById('overlay').classList.remove('open');document.body.style.overflow='';}
+
+let toastTimer;
+function showToast(icon,msg){
+  const t=document.getElementById('toast');
+  document.getElementById('toastIcon').textContent=icon;
+  document.getElementById('toastMsg').textContent=msg;
+  t.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+let chartsInit=false;
+function setPeriod(p,btn){
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+  if(chartsInit){chartsInit=false;['chartTimeline','chartDonut','chartLatency'].forEach(id=>{const c=Chart.getChart(id);if(c)c.destroy();});initCharts();}
+}
+function initCharts(){
+  if(chartsInit) return; chartsInit=true;
+  const labels30=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-29+i);return d.toLocaleDateString('es',{day:'2-digit',month:'short'});});
+  const tokensData=labels30.map((_,i)=>Math.round(25000+Math.sin(i/3)*8000+Math.random()*12000));
+  const queriesData=labels30.map((_,i)=>Math.round(130+Math.sin(i/4)*40+Math.random()*60));
+  new Chart(document.getElementById('chartTimeline'),{type:'line',data:{labels:labels30,datasets:[{label:'Tokens',data:tokensData,borderColor:'#00B8FF',backgroundColor:'rgba(0,184,255,.08)',fill:true,tension:.4,pointRadius:0,borderWidth:2,yAxisID:'y'},{label:'Consultas',data:queriesData,borderColor:'#9E00BE',backgroundColor:'rgba(158,0,190,.06)',fill:true,tension:.4,pointRadius:0,borderWidth:2,yAxisID:'y1'}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#5C5B5F',maxTicksLimit:8}},y:{position:'left',grid:{color:'#E3E4E8'},ticks:{font:{size:10},color:'#5C5B5F',callback:v=>v>=1000?(v/1000).toFixed(0)+'K':v}},y1:{position:'right',grid:{display:false},ticks:{font:{size:10},color:'#9E00BE'}}}}});
+  const donutData=[33,24,19,14,10],donutLabels=['Analista P&L','Competencia','Talent Analytics','Churn','Otros'],donutColors=['#00B8FF','#9E00BE','#1A2151','#5C5B5F','#E3E4E8'];
+  new Chart(document.getElementById('chartDonut'),{type:'doughnut',data:{labels:donutLabels,datasets:[{data:donutData,backgroundColor:donutColors,borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'72%',plugins:{legend:{display:false}}}});
+  document.getElementById('donutLegend').innerHTML=donutLabels.map((l,i)=>`<div class="flex items-center justify-between"><span class="flex items-center gap-2 text-xs text-g-dark"><span class="w-2 h-2 rounded-full inline-block" style="background:${donutColors[i]}"></span>${l}</span><span class="text-xs font-semibold text-primary">${donutData[i]}%</span></div>`).join('');
+  const rankData=[{name:'Analista P&L',icon:'📊',val:83,pct:100},{name:'Competencia',icon:'🎯',val:61,pct:73},{name:'Talent Analytics',icon:'👥',val:45,pct:54},{name:'Churn Predictor',icon:'🔮',val:38,pct:46}];
+  document.getElementById('rankList').innerHTML=rankData.map(r=>`<div><div class="flex items-center justify-between mb-1.5"><span class="text-xs text-primary">${r.icon} ${r.name}</span><span class="text-xs font-semibold text-primary">${r.val}</span></div><div class="w-full bg-g-mid rounded-full h-1.5"><div class="rank-bar h-1.5 rounded-full bg-gradient-to-r from-secondary to-tertiary" style="width:0%" data-pct="${r.pct}%"></div></div></div>`).join('');
+  setTimeout(()=>document.querySelectorAll('.rank-bar').forEach(b=>b.style.width=b.dataset.pct),100);
+  new Chart(document.getElementById('chartLatency'),{type:'bar',data:{labels:['Analista P&L','Competencia','Talent Analytics','Churn Predictor'],datasets:[{data:[1.4,2.1,1.9,1.6],backgroundColor:['#00B8FF','#9E00BE','#1A2151','#5C5B5F'],borderRadius:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'#E3E4E8'},ticks:{font:{size:10},callback:v=>v+'s'},max:3}}}});
+}
+
+const CHAT_SCRIPTS=[
+  {role:'agent',type:'text',delay:600,content:'¡Hola! Soy tu **Analista P&L**. Tengo acceso a tus datos financieros de enero a mayo 2025. ¿En qué puedo ayudarte?'},
+  {role:'user',type:'text',delay:0,content:'¿Cuál fue la variación del EBITDA en Q1 vs el año pasado?'},
+  {role:'agent',type:'text',delay:1800,content:'Procesando datos de Q1 2025 vs Q1 2024... Aquí tienes el análisis:'},
+  {role:'agent',type:'table',delay:400,content:null},
+  {role:'agent',type:'text',delay:300,content:'El **EBITDA creció +12.4%** YoY, principalmente por la mejora en Servicios Digitales (+4.2pp). El segmento Hardware muestra una contracción del −8.1%.'},
+  {role:'user',type:'text',delay:0,content:'¿Puedes mostrarme la tendencia mensual del EBITDA este año?'},
+  {role:'agent',type:'text',delay:1600,content:'Claro, aquí la evolución mes a mes:'},
+  {role:'agent',type:'chart-bar',delay:400,content:null},
+  {role:'agent',type:'text',delay:300,content:'📌 **Insight clave:** Febrero fue el mes de mayor EBITDA ($4.2M). Marzo tuvo una caída por gastos extraordinarios. La tendencia Q2 se proyecta positiva.'}
+];
+function openChat(){
+  const a=AGENTS[currentAgentIdx]; closeDetail();
+  document.getElementById('chatAgentIcon').textContent=a.icon;
+  document.getElementById('chatAgentName').textContent=a.name;
+  document.getElementById('chatAgentMeta').textContent=`${a.cat} · ${a.model}`;
+  document.getElementById('chatAgentModel').textContent=a.model;
+  document.getElementById('messagesArea').innerHTML='';
+  sessionTokenCount=0; document.getElementById('sessionTokens').textContent='0';
+  document.getElementById('chatView').classList.add('open');
+  document.body.style.overflow='hidden';
+  playChatScript(0);
+}
+function closeChat(){document.getElementById('chatView').classList.remove('open');document.body.style.overflow='';if(chatTypingTimer)clearTimeout(chatTypingTimer);}
+function playChatScript(idx){
+  if(idx>=CHAT_SCRIPTS.length) return;
+  const step=CHAT_SCRIPTS[idx];
+  chatTypingTimer=setTimeout(()=>{
+    if(step.role==='agent'&&step.delay>500){showTyping();setTimeout(()=>{hideTyping();appendMsg(step);playChatScript(idx+1);},step.delay);}
+    else{appendMsg(step);playChatScript(idx+1);}
+  },step.delay>500?0:step.delay);
+}
+function appendMsg(step){
+  const area=document.getElementById('messagesArea');
+  const isUser=step.role==='user';
+  const wrapper=document.createElement('div');
+  wrapper.className=`msg flex ${isUser?'justify-end':'justify-start'} items-end gap-2`;
+  let bubble='';
+  if(step.type==='text'){
+    const txt=(step.content||'').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+    bubble=`<div class="max-w-sm lg:max-w-lg rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${isUser?'bg-primary text-white rounded-br-sm':'bg-white text-primary rounded-bl-sm border border-g-mid'}">${txt}</div>`;
+  } else if(step.type==='table'){
+    bubble=`<div class="bg-white rounded-2xl border border-g-mid shadow-sm overflow-hidden max-w-lg"><div class="px-4 py-3 border-b border-g-mid"><span class="text-xs font-semibold text-primary">EBITDA Comparativo Q1 2025 vs Q1 2024</span></div><table class="w-full text-xs"><thead><tr class="bg-g-light"><th class="text-left px-4 py-2 text-g-dark">Segmento</th><th class="text-right px-4 py-2 text-g-dark">Q1 2024</th><th class="text-right px-4 py-2 text-g-dark">Q1 2025</th><th class="text-right px-4 py-2 text-g-dark">Var %</th></tr></thead><tbody><tr class="border-t border-g-mid"><td class="px-4 py-2 font-medium">Servicios Digitales</td><td class="text-right px-4 py-2">$3.1M</td><td class="text-right px-4 py-2 font-medium">$3.8M</td><td class="text-right px-4 py-2 text-green-600 font-semibold">+22.6%</td></tr><tr class="border-t border-g-mid"><td class="px-4 py-2 font-medium">Consultoría</td><td class="text-right px-4 py-2">$1.8M</td><td class="text-right px-4 py-2 font-medium">$2.0M</td><td class="text-right px-4 py-2 text-green-600 font-semibold">+11.1%</td></tr><tr class="border-t border-g-mid"><td class="px-4 py-2 font-medium">Hardware</td><td class="text-right px-4 py-2">$1.2M</td><td class="text-right px-4 py-2 font-medium">$1.1M</td><td class="text-right px-4 py-2 text-red-500 font-semibold">−8.1%</td></tr><tr class="border-t border-g-mid bg-secondary/5"><td class="px-4 py-2 font-bold">Total</td><td class="text-right px-4 py-2 font-bold">$6.1M</td><td class="text-right px-4 py-2 font-bold">$6.9M</td><td class="text-right px-4 py-2 text-green-600 font-bold">+12.4%</td></tr></tbody></table></div>`;
+  } else if(step.type==='chart-bar'){
+    const cid='ic_'+Date.now();
+    bubble=`<div class="bg-white rounded-2xl border border-g-mid shadow-sm p-4 max-w-lg"><p class="text-xs font-semibold text-primary mb-3">EBITDA mensual 2025 (USD)</p><div style="height:180px;position:relative"><canvas id="${cid}"></canvas></div></div>`;
+    setTimeout(()=>new Chart(document.getElementById(cid),{type:'bar',data:{labels:['Ene','Feb','Mar','Abr','May'],datasets:[{data:[3.8,4.2,3.5,4.0,4.4],backgroundColor:['#00B8FF','#00B8FF','#9E00BE','#00B8FF','#00B8FF'],borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'#E3E4E8'},ticks:{font:{size:10},callback:v=>`$${v}M`},max:5}}}}),50);
+  }
+  wrapper.innerHTML=isUser?bubble:`<div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mb-0.5" style="background:rgba(26,33,81,.08)"><span class="text-sm">${document.getElementById('chatAgentIcon').textContent}</span></div>${bubble}`;
+  area.appendChild(wrapper); area.scrollTop=area.scrollHeight;
+  sessionTokenCount+=step.type==='text'?Math.round((step.content||'').length*1.3):820;
+  document.getElementById('sessionTokens').textContent=sessionTokenCount.toLocaleString();
+}
+function showTyping(){
+  const area=document.getElementById('messagesArea');
+  const el=document.createElement('div'); el.id='typingBubble'; el.className='msg flex justify-start items-end gap-2';
+  el.innerHTML=`<div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(26,33,81,.08)"><span class="text-sm">${document.getElementById('chatAgentIcon').textContent}</span></div><div class="bg-white rounded-2xl border border-g-mid px-4 py-3 shadow-sm flex items-center gap-1.5"><div class="typing-dot w-1.5 h-1.5 rounded-full bg-g-dark"></div><div class="typing-dot w-1.5 h-1.5 rounded-full bg-g-dark"></div><div class="typing-dot w-1.5 h-1.5 rounded-full bg-g-dark"></div></div>`;
+  area.appendChild(el); area.scrollTop=area.scrollHeight;
+}
+function hideTyping(){const el=document.getElementById('typingBubble');if(el)el.remove();}
+function handleChatKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+function sendMessage(){
+  const input=document.getElementById('chatInput'); const txt=input.value.trim(); if(!txt) return;
+  input.value=''; input.style.height='auto';
+  appendMsg({role:'user',type:'text',content:txt});
+  showTyping();
+  setTimeout(()=>{hideTyping();appendMsg({role:'agent',type:'text',content:'He procesado tu consulta. Aquí tienes el análisis basado en los datos disponibles.'});},1500);
+}
+function newChatSession(){document.getElementById('messagesArea').innerHTML='';sessionTokenCount=0;document.getElementById('sessionTokens').textContent='0';playChatScript(0);}
+
+function showCfgTab(tab,btn){document.querySelectorAll('.cfg-tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.cfg-section').forEach(s=>s.classList.remove('active'));if(btn)btn.classList.add('active');const s=document.getElementById('cfg-'+tab);if(s)s.classList.add('active');}
+function toggleReveal(inputId,btn){const inp=document.getElementById(inputId);if(!inp)return;const h=inp.type==='password';inp.type=h?'text':'password';btn.innerHTML=h?`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00B8FF" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`:`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;}
+function saveProviderKey(provider){const names={openai:'OpenAI',anthropic:'Anthropic',google:'Google AI',aws:'AWS Bedrock',azure:'Azure OpenAI',ialestra:'iAlestra Gateway'};const card=document.getElementById('card-'+provider);if(card)card.classList.add('connected');showToast('🔑',`Credenciales de ${names[provider]||provider} guardadas`);}
+function testProvider(provider){const names={openai:'OpenAI',anthropic:'Anthropic',google:'Google AI',aws:'AWS Bedrock',azure:'Azure OpenAI',ialestra:'iAlestra Gateway'};showToast('🔄',`Probando conexión con ${names[provider]||provider}...`);setTimeout(()=>showToast('✅',`Conexión exitosa · 42ms`),1800);}
+function copyToClipboard(text,btn){navigator.clipboard?.writeText(text).catch(()=>{});const orig=btn.innerHTML;btn.innerHTML='✅ Copiado';setTimeout(()=>btn.innerHTML=orig,2000);}
+function regenerateToken(){if(!confirm('¿Estás seguro? El token actual dejará de funcionar.'))return;const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';const t='sk-agentos-acme-'+Array.from({length:36},()=>chars[Math.floor(Math.random()*chars.length)]).join('');document.getElementById('apiTokenInput').value=t;showToast('🔄','Token regenerado.');}
+function saveAllSettings(){showToast('✅','Configuración guardada correctamente');}
+function addIP(){const list=document.getElementById('ipList');if(!list)return;const div=document.createElement('div');div.className='flex items-center gap-2';div.innerHTML=`<input type="text" placeholder="0.0.0.0/0" class="settings-input flex-1 bg-g-light border border-g-mid rounded-xl px-3 py-2 text-xs font-mono text-primary"><button onclick="this.parentElement.remove()" class="w-8 h-8 bg-g-light border border-g-mid rounded-lg hover:bg-red-50 flex items-center justify-center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5B5F" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>`;list.appendChild(div);div.querySelector('input').focus();}
+
+/* CSS extra para config */
+const extraStyle=document.createElement('style');
+extraStyle.textContent=`.cfg-tab{transition:all .18s;border-bottom:2px solid transparent;}.cfg-tab.active{color:#1A2151;border-bottom-color:#00B8FF;font-weight:600;}.cfg-section{display:none;}.cfg-section.active{display:block;}.provider-card{transition:all .22s;}.provider-card:hover{box-shadow:0 8px 28px rgba(26,33,81,.1);transform:translateY(-2px);}.provider-card.connected{border-color:rgba(0,184,255,.4)!important;}.prov-badge{display:none;}.provider-card.connected .prov-badge{display:flex;}.key-input:focus,.settings-input:focus{outline:none;border-color:#00B8FF;box-shadow:0 0 0 3px rgba(0,184,255,.13);}.key-input,.settings-input{transition:border-color .2s,box-shadow .2s;}.role-admin{background:rgba(26,33,81,.1);color:#1A2151;}`;
+document.head.appendChild(extraStyle);
+
+window.addEventListener('load',()=>{setTimeout(()=>{document.getElementById('tokenBar').style.width='24%';},700);});
+</script>
+</body>
+</html>
+

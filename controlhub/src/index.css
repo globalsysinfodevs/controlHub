@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-g-light text-ink font-sans antialiased;
+    background-color: #ededed;
+  }
+
+  ::selection {
+    background: #00b8ff;
+    color: #fff;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #ededed;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #e3e4e8;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #5c5b5f;
+  }
+
+  :focus-visible {
+    outline: 2px solid #00b8ff;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  /* Generic white card surface. */
+  .panel {
+    @apply rounded-2xl border border-g-mid bg-white shadow-panel;
+  }
+
+  .eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-widest text-g-dark;
+  }
+
+  .stat-number {
+    @apply tabular-nums;
+  }
+
+  /* ── Agent card ── */
+  .agent-card {
+    @apply rounded-2xl border border-g-mid bg-white transition-all duration-200;
+  }
+  .agent-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 48px rgba(26, 33, 81, 0.11);
+  }
+  .agent-card.enabled {
+    border-color: rgba(0, 184, 255, 0.35);
+    box-shadow: 0 0 0 1px rgba(0, 184, 255, 0.2);
+  }
+  .agent-card.enabled:hover {
+    box-shadow: 0 16px 48px rgba(0, 184, 255, 0.15);
+  }
+
+  /* ── Toggle switch ── */
+  .tgl {
+    position: relative;
+    width: 42px;
+    height: 23px;
+    flex-shrink: 0;
+    display: inline-block;
+  }
+  .tgl input {
+    display: none;
+  }
+  .tgl-track {
+    position: absolute;
+    inset: 0;
+    background: #e3e4e8;
+    border-radius: 23px;
+    cursor: pointer;
+    transition: 0.3s;
+  }
+  .tgl-track::before {
+    content: "";
+    position: absolute;
+    width: 17px;
+    height: 17px;
+    left: 3px;
+    bottom: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: 0.3s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  }
+  .tgl input:checked ~ .tgl-track {
+    background: #00b8ff;
+  }
+  .tgl input:checked ~ .tgl-track::before {
+    transform: translateX(19px);
+  }
+
+  /* ── Category item ── */
+  .cat-item {
+    @apply flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-g-dark transition-colors;
+  }
+  .cat-item.active {
+    background: rgba(0, 184, 255, 0.1);
+    font-weight: 600;
+    color: #1a2151;
+  }
+  .cat-item:not(.active):hover {
+    background: #ededed;
+  }
+
+  /* ── Filter chip ── */
+  .chip {
+    @apply rounded-full border border-g-mid bg-white px-3 py-1.5 text-xs font-medium text-g-dark transition-all;
+  }
+  .chip.active {
+    background: #1a2151;
+    color: #fff;
+    border-color: #1a2151;
+  }
+  .chip:not(.active):hover {
+    border-color: #00b8ff;
+    color: #1a2151;
+  }
+
+  /* ── Nav link (top bar) ── */
+  .nav-lnk {
+    @apply relative pb-1 text-sm transition-colors;
+  }
+  .nav-lnk.active {
+    color: #00b8ff !important;
+  }
+  .nav-lnk.active::after {
+    content: "";
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #00b8ff;
+    border-radius: 2px;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-g-mid/60;
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
