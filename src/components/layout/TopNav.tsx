@@ -13,6 +13,7 @@ import { NotificationsPanel } from "./NotificationsPanel";
 
 const DASHBOARD_TAB = { to: "/dashboard", label: "Dashboard" };
 const PLATFORM_TAB = { to: "/platform", label: "Plataforma" };
+const TENANT_TAB   = { to: "/tenant",    label: "Tenant" };
 const BASE_TABS = [
   { to: "/marketplace", label: "Marketplace" },
   { to: "/analytics", label: "Analytics" },
@@ -21,10 +22,12 @@ const BASE_TABS = [
 
 export function TopNav() {
   const { user, tenant, logout } = useAuth();
-  // Super admins get the platform console; tenant users get their dashboard.
+  // Super admins get the platform console; tenant_admin gets dashboard + tenant console; others get dashboard.
   const tabs = isSuperAdmin(user?.role)
     ? [PLATFORM_TAB, ...BASE_TABS]
-    : [DASHBOARD_TAB, ...BASE_TABS];
+    : user?.role === "tenant_admin"
+      ? [DASHBOARD_TAB, TENANT_TAB, ...BASE_TABS]
+      : [DASHBOARD_TAB, ...BASE_TABS];
   const agents = useMarket((s) => s.agents);
   const enabled = agents.filter((a) => a.enabled).length;
   const [notifOpen, setNotifOpen] = useState(false);

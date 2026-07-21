@@ -16,6 +16,7 @@ import { Globe, Save, Wrench, X } from "lucide-react";
 import { agentsApi, modelsApi, toolsApi } from "@/lib/api/endpoints";
 import type { AgentCreate, AgentUpdate, LLMModel } from "@/lib/api/endpoints";
 import type { Agent } from "@/lib/api/types";
+import { useAuth, isSuperAdmin } from "@/store/auth";
 import { toast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -87,6 +88,8 @@ export function AgentFormDrawer({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const isSA = isSuperAdmin(user?.role);
   const [draft, setDraft] = useState<Draft>(agent ? toDraft(agent) : EMPTY);
 
   // Reset draft when agent/mode/open changes
@@ -117,6 +120,7 @@ export function AgentFormDrawer({
         return ((res as { items: AgentTemplate[] }).items) ?? [];
       return [];
     },
+    enabled: isSA,
     staleTime: 10 * 60 * 1000,
   });
 
