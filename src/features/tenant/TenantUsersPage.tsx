@@ -329,17 +329,15 @@ export function TenantUsersPage() {
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        {/* Edit button — available for all non-admin users */}
-                        {u.role !== "tenant_admin" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            leftIcon={<Pencil className="h-3.5 w-3.5" />}
-                            onClick={() => setEditUser(u)}
-                          >
-                            Edit
-                          </Button>
-                        )}
+                        {/* Edit button — available for all users */}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          leftIcon={<Pencil className="h-3.5 w-3.5" />}
+                          onClick={() => setEditUser(u)}
+                        >
+                          Edit
+                        </Button>
 
                         {/* Activate / Deactivate */}
                         {u.status !== "invited" && u.role !== "tenant_admin" && (
