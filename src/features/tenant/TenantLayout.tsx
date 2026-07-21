@@ -1,11 +1,10 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Building2, Settings2, Users, type LucideIcon } from "lucide-react";
+import { Building2, Users, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SUB_TABS: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
-  { to: "/tenant",         label: "Overview",  icon: Building2, end: true },
-  { to: "/tenant/users",   label: "Users",     icon: Users               },
-  { to: "/tenant/config",  label: "Config",    icon: Settings2           },
+  { to: "/tenant",       label: "Overview", icon: Building2, end: true },
+  { to: "/tenant/users", label: "Users",    icon: Users               },
 ];
 
 /** Shared shell for the tenant admin console: secondary tab bar + page outlet. */

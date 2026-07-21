@@ -98,7 +98,6 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <TenantOverviewPage /> },
           { path: "users", element: <TenantUsersPage /> },
-          { path: "config", element: <TenantConfigPage /> },
         ],
       },
       { path: "marketplace", element: <MarketplacePage /> },

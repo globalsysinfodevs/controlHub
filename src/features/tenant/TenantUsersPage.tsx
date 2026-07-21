@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Power, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
+import { Pencil, Power, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { paginationOf } from "@/lib/api/client";
-import { usersApi, type TeamUser } from "@/lib/api/endpoints";
+import { usersApi, type TeamUser, type UpdateUserRequest } from "@/lib/api/endpoints";
 import { timeAgo } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -33,10 +33,132 @@ const STATUS_LABEL: Record<string, string> = {
 const FIELD =
   "h-9 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder-ink-faint focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20";
 
+// ── Edit User Modal ────────────────────────────────────────────────────────────
+
+function EditUserModal({
+  user,
+  onClose,
+}: {
+  user: TeamUser;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState<UpdateUserRequest>({
+    name: user.name,
+    role: user.role,
+    monthly_token_limit: (user as TeamUser & { monthly_token_limit?: number | null }).monthly_token_limit ?? null,
+  });
+
+  const save = useMutation({
+    mutationFn: () => usersApi.update(user.id, form),
+    onSuccess: () => {
+      toast.success("User updated");
+      qc.invalidateQueries({ queryKey: ["tenant", "users"] });
+      onClose();
+    },
+    onError: (e) => toast.error("Could not update user", (e as Error).message),
+  });
+
+  return (
+    /* Backdrop */
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="panel relative z-10 w-full max-w-md p-6">
+        {/* Header */}
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-base font-semibold text-ink">Edit User</h2>
+            <p className="mt-0.5 text-xs text-ink-muted">{user.email}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-line text-ink-muted hover:bg-surface-raised"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <div className="space-y-4">
+          {/* Name */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-ink-muted">Full Name</label>
+            <input
+              value={form.name ?? ""}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className={FIELD}
+              placeholder="Full name"
+            />
+          </div>
+
+          {/* Role — not editable for tenant_admin */}
+          {user.role !== "tenant_admin" && (
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-ink-muted">Role</label>
+              <select
+                value={form.role ?? user.role}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                className={FIELD}
+              >
+                <option value="member">Member</option>
+                <option value="viewer">Viewer</option>
+              </select>
+            </div>
+          )}
+
+          {/* Monthly token limit */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-ink-muted">
+              Monthly Token Limit
+              <span className="ml-1 font-normal text-ink-faint">(leave blank for unlimited)</span>
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={form.monthly_token_limit ?? ""}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  monthly_token_limit: e.target.value === "" ? null : Number(e.target.value),
+                })
+              }
+              className={FIELD}
+              placeholder="e.g. 500000"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={save.isPending}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            loading={save.isPending}
+            disabled={!form.name?.trim()}
+            onClick={() => save.mutate()}
+          >
+            Save changes
+          </Button>
+        </div>
+
+        {/* API reference note */}
+        <p className="mt-3 text-center text-2xs text-ink-faint">
+          PUT /api/v1/users/{user.id}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────────
+
 export function TenantUsersPage() {
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [inviting, setInviting] = useState(false);
+  const [editUser, setEditUser] = useState<TeamUser | null>(null);
   const [form, setForm] = useState({ name: "", email: "", role: "member" as "member" | "viewer" });
 
   const { data, isLoading, isError, error, isFetching } = useQuery({
@@ -65,12 +187,6 @@ export function TenantUsersPage() {
     onError: (e) => toast.error("Could not invite user", (e as Error).message),
   });
 
-  const changeRole = useMutation({
-    mutationFn: (v: { id: string; role: string }) => usersApi.update(v.id, { role: v.role }),
-    onSuccess: () => { toast.success("Role updated"); refresh(); },
-    onError: (e) => toast.error("Could not update role", (e as Error).message),
-  });
-
   const toggleStatus = useMutation({
     mutationFn: (v: { id: string; status: string }) => usersApi.update(v.id, { status: v.status }),
     onSuccess: (_res, v) => {
@@ -96,7 +212,7 @@ export function TenantUsersPage() {
       <PageHeader
         eyebrow="Tenant"
         title="Users"
-        description="Manage team members — invite, update roles, and deactivate accounts."
+        description="Manage team members — invite, edit, and deactivate accounts."
         actions={
           <Button
             size="sm"
@@ -171,7 +287,7 @@ export function TenantUsersPage() {
       ) : (
         <>
           <div className="panel overflow-x-auto">
-            <table className="w-full min-w-[680px] text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-2xs uppercase tracking-wider text-ink-faint">
                   <th className="px-5 py-3 font-medium">User</th>
@@ -199,19 +315,9 @@ export function TenantUsersPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3">
-                      {u.role === "tenant_admin" ? (
-                        <Badge tone="brand">{ROLE_LABEL[u.role] ?? u.role}</Badge>
-                      ) : (
-                        <select
-                          value={u.role}
-                          onChange={(e) => changeRole.mutate({ id: u.id, role: e.target.value })}
-                          disabled={changeRole.isPending && changeRole.variables?.id === u.id}
-                          className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink focus:border-brand-500 focus:outline-none"
-                        >
-                          <option value="member">Member</option>
-                          <option value="viewer">Viewer</option>
-                        </select>
-                      )}
+                      <Badge tone={u.role === "tenant_admin" ? "brand" : "neutral"}>
+                        {ROLE_LABEL[u.role] ?? u.role}
+                      </Badge>
                     </td>
                     <td className="px-5 py-3">
                       <Badge tone={STATUS_TONE[u.status] ?? "neutral"} dot>
@@ -223,6 +329,19 @@ export function TenantUsersPage() {
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        {/* Edit button — available for all non-admin users */}
+                        {u.role !== "tenant_admin" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            leftIcon={<Pencil className="h-3.5 w-3.5" />}
+                            onClick={() => setEditUser(u)}
+                          >
+                            Edit
+                          </Button>
+                        )}
+
+                        {/* Activate / Deactivate */}
                         {u.status !== "invited" && u.role !== "tenant_admin" && (
                           <Button
                             size="sm"
@@ -240,6 +359,8 @@ export function TenantUsersPage() {
                             {u.status === "active" ? "Deactivate" : "Activate"}
                           </Button>
                         )}
+
+                        {/* Remove */}
                         {u.role !== "tenant_admin" && (
                           <Button
                             size="sm"
@@ -269,6 +390,11 @@ export function TenantUsersPage() {
             onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
           />
         </>
+      )}
+
+      {/* Edit User Modal */}
+      {editUser && (
+        <EditUserModal user={editUser} onClose={() => setEditUser(null)} />
       )}
     </div>
   );
