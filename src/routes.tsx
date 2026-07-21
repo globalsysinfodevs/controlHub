@@ -12,6 +12,10 @@ import { TenantsPage } from "@/features/platform/TenantsPage";
 import { PlatformUsersPage } from "@/features/platform/PlatformUsersPage";
 import { IndustriesPage } from "@/features/platform/IndustriesPage";
 import { PlatformConfigPage } from "@/features/platform/PlatformConfigPage";
+import { TenantLayout } from "@/features/tenant/TenantLayout";
+import { TenantOverviewPage } from "@/features/tenant/TenantOverviewPage";
+import { TenantUsersPage } from "@/features/tenant/TenantUsersPage";
+import { TenantConfigPage } from "@/features/tenant/TenantConfigPage";
 import { MarketplacePage } from "@/features/marketplace/MarketplacePage";
 import { AnalyticsPage } from "@/features/analytics/AnalyticsPage";
 import { ConfigPage } from "@/features/config/ConfigPage";
@@ -86,6 +90,15 @@ export const router = createBrowserRouter([
           { path: "users", element: <PlatformUsersPage /> },
           { path: "industries", element: <IndustriesPage /> },
           { path: "config", element: <PlatformConfigPage /> },
+        ],
+      },
+      {
+        path: "tenant",
+        element: <TenantLayout />,
+        children: [
+          { index: true, element: <TenantOverviewPage /> },
+          { path: "users", element: <TenantUsersPage /> },
+          { path: "config", element: <TenantConfigPage /> },
         ],
       },
       { path: "marketplace", element: <MarketplacePage /> },
