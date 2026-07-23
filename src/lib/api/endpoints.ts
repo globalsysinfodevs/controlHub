@@ -368,12 +368,20 @@ export const usersApi = {
   list: (page = 1, page_size = 20) => api.get<TeamUser[]>("/users", { page, page_size }),
   /** POST /api/v1/users/invite */
   invite: (body: InviteUserRequest) => api.post<unknown>("/users/invite", body),
+  /** GET /api/v1/users/invitations — list pending invitations */
+  listInvitations: (page = 1, page_size = 20, include_expired = false) =>
+    api.get<unknown>("/users/invitations", { page, page_size, include_expired }),
+  /** DELETE /api/v1/users/invitations/{invitation_id} — revoke a pending invitation */
+  revokeInvitation: (invitation_id: string) =>
+    api.delete<null>(`/users/invitations/${invitation_id}`),
   /** GET /api/v1/users/{user_id} */
   get: (id: string) => api.get<unknown>(`/users/${id}`),
   /** PUT /api/v1/users/{user_id} */
   update: (id: string, body: UpdateUserRequest) => api.put<unknown>(`/users/${id}`, body),
   /** DELETE /api/v1/users/{user_id} */
   remove: (id: string) => api.delete<null>(`/users/${id}`),
+  /** POST /api/v1/users/{user_id}/resend-invite */
+  resendInvite: (id: string) => api.post<unknown>(`/users/${id}/resend-invite`, {}),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

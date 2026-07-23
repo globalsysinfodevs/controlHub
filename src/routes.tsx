@@ -15,6 +15,7 @@ import { PlatformConfigPage } from "@/features/platform/PlatformConfigPage";
 import { TenantLayout } from "@/features/tenant/TenantLayout";
 import { TenantOverviewPage } from "@/features/tenant/TenantOverviewPage";
 import { TenantUsersPage } from "@/features/tenant/TenantUsersPage";
+import { TenantGroupsPage } from "@/features/tenant/TenantGroupsPage";
 import { TenantConfigPage } from "@/features/tenant/TenantConfigPage";
 import { MarketplacePage } from "@/features/marketplace/MarketplacePage";
 import { AnalyticsPage } from "@/features/analytics/AnalyticsPage";
@@ -98,6 +99,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <TenantOverviewPage /> },
           { path: "users", element: <TenantUsersPage /> },
+          { path: "groups", element: <TenantGroupsPage /> },
         ],
       },
       { path: "marketplace", element: <MarketplacePage /> },

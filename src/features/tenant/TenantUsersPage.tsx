@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Power, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
+import { Mail, Pencil, Power, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { paginationOf } from "@/lib/api/client";
-import { usersApi, type TeamUser, type UpdateUserRequest } from "@/lib/api/endpoints";
+import { usersApi, groupsApi, type TeamUser, type UpdateUserRequest } from "@/lib/api/endpoints";
 import { timeAgo } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -159,7 +159,7 @@ export function TenantUsersPage() {
   const [page, setPage] = useState(1);
   const [inviting, setInviting] = useState(false);
   const [editUser, setEditUser] = useState<TeamUser | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", role: "member" as "member" | "viewer" });
+  const [form, setForm] = useState({ name: "", email: "", role: "member" as "member" | "viewer", group_id: "" });
 
   const { data, isLoading, isError, error, isFetching } = useQuery({
     queryKey: ["tenant", "users", page],
@@ -176,12 +176,24 @@ export function TenantUsersPage() {
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["tenant", "users"] });
 
+  const { data: groupsData } = useQuery({
+    queryKey: ["tenant", "groups"],
+    queryFn: () => groupsApi.list(),
+  });
+  const groups = Array.isArray(groupsData) ? groupsData : [];
+
+  const resendInvite = useMutation({
+    mutationFn: (id: string) => usersApi.resendInvite(id),
+    onSuccess: () => toast.success("Invitation resent"),
+    onError: (e) => toast.error("Could not resend invite", (e as Error).message),
+  });
+
   const invite = useMutation({
-    mutationFn: () => usersApi.invite(form),
+    mutationFn: () => usersApi.invite({ ...form, group_id: form.group_id || undefined }),
     onSuccess: () => {
       toast.success("Invitation sent", form.email);
       setInviting(false);
-      setForm({ name: "", email: "", role: "member" });
+      setForm({ name: "", email: "", role: "member", group_id: "" });
       refresh();
     },
     onError: (e) => toast.error("Could not invite user", (e as Error).message),
@@ -257,6 +269,21 @@ export function TenantUsersPage() {
               <option value="viewer">Viewer</option>
             </select>
           </div>
+          {groups.length > 0 && (
+            <div className="min-w-[160px]">
+              <label className="mb-1 block text-xs font-semibold text-ink-muted">Group (optional)</label>
+              <select
+                value={form.group_id}
+                onChange={(e) => setForm({ ...form, group_id: e.target.value })}
+                className={FIELD}
+              >
+                <option value="">No group</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <Button
             size="sm"
             loading={invite.isPending}
@@ -355,6 +382,19 @@ export function TenantUsersPage() {
                             }
                           >
                             {u.status === "active" ? "Deactivate" : "Activate"}
+                          </Button>
+                        )}
+
+                        {/* Resend invite — only for invited users */}
+                        {u.status === "invited" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            leftIcon={<Mail className="h-3.5 w-3.5" />}
+                            loading={resendInvite.isPending && resendInvite.variables === u.id}
+                            onClick={() => resendInvite.mutate(u.id)}
+                          >
+                            Resend
                           </Button>
                         )}
 
