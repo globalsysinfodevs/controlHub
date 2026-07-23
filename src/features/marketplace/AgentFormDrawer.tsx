@@ -350,9 +350,9 @@ export function AgentFormDrawer({
                 value={draft.status}
                 onChange={(e) => set("status", e.target.value as Draft["status"])}
               >
-                <option key="draft" value="draft">Draft</option>
-                <option key="active" value="active">Active</option>
-                <option key="inactive" value="inactive">Inactive</option>
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
               </Select>
             </div>
           </div>

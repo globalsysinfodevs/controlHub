@@ -46,7 +46,8 @@ export function TopNav() {
   // rides in the EventSource URL, we reconnect whenever the token rotates
   // (refresh) and close the stream on logout.
   useEffect(() => {
-    if (isMock) return;
+    // Don't open the SSE stream until the user is authenticated and we're in live mode.
+    if (isMock || !user) return;
     let conn: { close: () => void } | null = null;
 
     const onNotification = (data: string) => {
@@ -74,7 +75,7 @@ export function TopNav() {
       unsub();
       conn?.close();
     };
-  }, [qc]);
+  }, [qc, user]);
 
   const orgName = tenant?.name ?? "Acme Corp";
 
