@@ -370,7 +370,7 @@ export const usersApi = {
   invite: (body: InviteUserRequest) => api.post<unknown>("/users/invite", body),
   /** GET /api/v1/users/invitations — list pending invitations */
   listInvitations: (page = 1, page_size = 20, include_expired = false) =>
-    api.get<unknown>("/users/invitations", { page, page_size, include_expired }),
+    api.get<unknown>("/users/invitations", { page, page_size, include_expired: include_expired ? 1 : 0 }),
   /** DELETE /api/v1/users/invitations/{invitation_id} — revoke a pending invitation */
   revokeInvitation: (invitation_id: string) =>
     api.delete<null>(`/users/invitations/${invitation_id}`),
